@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="300" height="64" role="img" aria-label="Vaultessa">
+  <title>Vaultessa</title>
+  <!-- Wordmark uses the Geist typeface; outline the text before print or trademark filing. -->
+  <defs>
+    <mask id="vaultessa-v" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <rect x="12" y="27" width="40" height="31" rx="9" fill="#fff"/>
+      <path d="M23.5 35L32 50L40.5 35" fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <path d="M21 29V21C21 14.9 25.9 10 32 10C38.1 10 43 14.9 43 21V29" fill="none" stroke="#4F46E5" stroke-width="5.5" stroke-linecap="round"/>
+  <rect x="12" y="27" width="40" height="31" rx="9" fill="#4F46E5" mask="url(#vaultessa-v)"/>
+  <text x="66" y="46" font-family="Geist, Inter, 'Segoe UI', Arial, sans-serif" font-size="40" font-weight="600" letter-spacing="-1.2" fill="#0F172A">Vaultessa</text>
+</svg>

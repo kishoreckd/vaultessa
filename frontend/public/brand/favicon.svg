@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32">
+  <!-- Heavier strokes for 16–32 px; lighter tint in dark browser chrome. -->
+  <style>
+    .s { stroke: #4F46E5; }
+    .f { fill: #4F46E5; }
+    @media (prefers-color-scheme: dark) {
+      .s { stroke: #A5A1F5; }
+      .f { fill: #A5A1F5; }
+    }
+  </style>
+  <defs>
+    <mask id="favicon-v" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <rect x="8" y="27" width="48" height="33" rx="9" fill="#fff"/>
+      <path d="M21.5 35L32 52L42.5 35" fill="none" stroke="#000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <path class="s" d="M20 30V21C20 14.4 25.4 9 32 9C38.6 9 44 14.4 44 21V30" fill="none" stroke-width="8.5" stroke-linecap="round"/>
+  <rect class="f" x="8" y="27" width="48" height="33" rx="9" mask="url(#favicon-v)"/>
+</svg>

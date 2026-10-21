@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: passvault-postgres
+    environment:
+      POSTGRES_USER: passvault
+      POSTGRES_PASSWORD: passvault
+      POSTGRES_DB: passvault
+    ports:
+      # Host port 5433 avoids clashing with a locally installed PostgreSQL.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U passvault"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: passvault-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8026}:8025" # web UI
+      - "${MAILPIT_SMTP_PORT:-1026}:1025" # SMTP
+
+volumes:
+  pgdata:
