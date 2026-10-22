@@ -38,3 +38,6 @@ ignore = ["B008"] # FastAPI's Depends()/Query() defaults are idiomatic
 
 [project.scripts]
 app = "app.main:app"
+
+[tool.vercel]
+entrypoint = "app.main:app"
