@@ -34,3 +34,7 @@ ignore = ["B008"] # FastAPI's Depends()/Query() defaults are idiomatic
 "migrations/*" = ["E501"]
 "app/services/audit_service.py" = ["S105"] # SECRET_* action names aren't passwords
 "app/services/email_templates.py" = ["E501"] # inline-styled HTML email markup
+
+
+[project.scripts]
+app = "app.main:app"
