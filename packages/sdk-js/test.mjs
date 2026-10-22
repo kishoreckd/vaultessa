@@ -15,7 +15,7 @@ test('decrypts a granted item and sends only the derived credential', async (t) 
     assert.equal(url, 'https://vault.example/api/machine/secrets');
     assert.equal(options.headers.Authorization, `Bearer ${fixture.credential}`);
     assert.equal(options.redirect, 'error');
-    return new Response(JSON.stringify([fixture.row]));
+    return new Response(JSON.stringify({ status: 'success', message: 'Success', data: [fixture.row] }));
   });
   const client = new VaultessaClient({ url: 'https://vault.example', token: fixture.token });
   assert.deepEqual((await client.get(fixture.row.id)).data, fixture.payload);
@@ -24,7 +24,7 @@ test('decrypts a granted item and sends only the derived credential', async (t) 
 
 test('rejects tampered ciphertext', async (t) => {
   const row = { ...fixture.row, encryptedData: fixture.row.encryptedData.slice(0, -5) + 'AAAA=' };
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify([row])));
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ status: 'success', message: 'Success', data: [row] })));
   await assert.rejects(() => new VaultessaClient({ url: 'https://vault.example', token: fixture.token }).list());
 });
 

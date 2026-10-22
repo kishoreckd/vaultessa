@@ -18,6 +18,7 @@ class ShareOut(ApiModel):
     permission: Permission
     is_owner: bool
     accepted: bool
+    organization_id: uuid.UUID | None = None
 
 
 class GrantShareRequest(RequestModel):
@@ -25,6 +26,7 @@ class GrantShareRequest(RequestModel):
     # the secret key wrapped with the recipient's RSA-OAEP public key
     wrapped_key: RsaWrappedKey
     permission: Permission
+    organization_id: uuid.UUID | None = None
 
 
 class UpdateShareRequest(RequestModel):

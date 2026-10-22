@@ -2,27 +2,24 @@
 
 ## User flow
 
-1. Signup sends **Verify your Vaultessa email**. The email link works for 24 hours.
-2. Open the link and press **Verify my email**. Verification is explicit so email
-   link scanners do not consume it. Verification sends the separate **Welcome to
-   Vaultessa** email. A link can be used once.
-3. In **Settings → Email verification and vault recovery**, enable vault recovery
-   with the current master password. Copy the `vrk.` recovery key somewhere safe
-   outside Vaultessa and confirm it has been saved. Replacing the key invalidates
-   the previous key and any pending recovery link.
-4. If the master password is forgotten, choose **Forgot master password?** on the
-   sign-in or unlock screen. Request an email, open its link, enter the saved vault
-   recovery key, and choose a new master password.
-5. The recovery email expires in 15 minutes. Successful recovery signs out all
-   sessions, revokes developer tokens and consumes the recovery key. Sign in again
-   and generate a new recovery key. MFA is preserved, including unused MFA recovery
-   codes; vault recovery does not bypass the second factor.
+1. Signup emails a six-digit code. Enter it on `/verify-email`; the code expires after
+   10 minutes and works once. Verification sends a separate welcome email.
+2. Resend is available after 45 seconds. The server enforces the timer, while the
+   UI displays a countdown that survives refresh. Only the latest code works.
+3. In Settings, enable vault recovery with the current master password and save
+   the `vrk.` recovery key outside Vaultessa.
+4. Forgot password: enter the account email, enter the emailed code on the page,
+   then enter the saved recovery key and a new master password. Reusing the current
+   password shows an error without consuming the recovery key or reset capability.
+5. Successful recovery preserves encrypted items, signs out all sessions, revokes
+   developer tokens and consumes the recovery key. Sign in and generate a new key.
+   MFA remains enabled. Previously delivered links remain supported explicitly.
 
 Existing accounts are not automatically verified or given recovery keys. They
 must verify their email and enable recovery while they can still unlock their vault.
 Without a previously saved vault recovery key, this flow cannot restore encrypted
 data. It never deletes an old vault or pretends that an email-only reset can decrypt it.
-Email verification currently gates recovery setup, not ordinary vault login.
+Email verification is mandatory before ordinary vault access as well as recovery setup.
 
 ## Security and storage
 
@@ -32,7 +29,7 @@ Email verification currently gates recovery setup, not ordinary vault login.
   Opening a URL alone changes no account state.
 - Resend endpoints return the same HTTP 202/message for unknown, unverified,
   already verified, recovery-disabled and throttled accounts as appropriate.
-  Each account has a 60-second resend cooldown; public endpoints also use the
+  Each account has a 45-second resend cooldown; public endpoints also use the
   existing IP rate limiter. Resending replaces the prior token.
 - Vault recovery keys are generated in the browser with 256 random bits. HKDF-SHA256
   uses independent `passvault-recovery-auth` and `passvault-recovery-enc` branches.
@@ -54,13 +51,17 @@ Email verification currently gates recovery setup, not ordinary vault login.
 | Method | Path | Body / response |
 | --- | --- | --- |
 | POST | `/auth/email/request` | `{ email }` → generic 202 |
+| GET | `/auth/email/policy` | public resend/code expiry policy |
+| GET | `/auth/email/status` | restricted session: remaining resend seconds |
+| POST | `/auth/email/verify-code` | `{ email, code }` -> confirmation, queues welcome |
+| POST | `/auth/recovery/verify-code` | `{ email, code }` -> single-use reset capability |
 | POST | `/auth/email/verify` | `{ token }` → confirmation, queues welcome email |
 | GET | `/account/recovery` | bearer → `{ emailVerified, recoveryEnabled, emailAvailable }` |
 | PUT | `/account/recovery` | bearer + `{ authHash, recoveryAuth, wrappedVaultKey }` → 204 |
 | POST | `/account/recovery/disable` | bearer + `{ authHash }` → 204 |
 | POST | `/auth/recovery/request` | `{ email }` → generic 202 |
-| POST | `/auth/recovery/inspect` | `{ token }` → `{ wrappedVaultKey }` |
-| POST | `/auth/recovery/reset` | `{ token, recoveryAuth, newAuthHash, kdfSalt, kdfIterations, protectedVaultKey }` → confirmation, no session |
+| POST | `/auth/recovery/inspect` | `{ token }` → `{ wrappedVaultKey, kdfSalt, kdfIterations }` |
+| POST | `/auth/recovery/reset` | `{ token, recoveryAuth, newAuthHash, currentKdfAuthHash, kdfSalt, kdfIterations, protectedVaultKey }` → confirmation, no session |
 
 Paths above are relative to `/api`. Tokens have exactly 43 base64url characters.
 All models reject unknown fields; `masterPassword` and raw `recoveryKey` are never
@@ -92,3 +93,47 @@ Revision `01176535d83b` adds only nullable recovery/verification fields and defa
 status/attempt columns to `users`. No existing ciphertext or key formats change.
 Alembic's environment explicitly imports the models so standalone autogeneration
 registers the full metadata. Review generated migrations before applying them.
+
+## Mandatory verification gate
+
+New users are stored with `email_verified=false`. Registration sends the configured verification email;
+first password login can resend it after the configured cooldown. Registration or password/MFA login
+may establish a restricted session, but `/auth/me`, refresh and sign-out are the only authenticated
+session operations available until verification. Public resend/verify/recovery and guest-link routes
+keep their own validation. Protected vault, folders, settings, sharing, teams, audit and token APIs
+return `403 EMAIL_NOT_VERIFIED`. Machine tokens also check the owner's database verification flag.
+
+The browser keeps unverified accounts locked without loading vault keys and sends them to `/verify-email`.
+The page provides a six-digit code input, a resend countdown, contextual logo-free artwork,
+inline errors, action toasts and account switching. After email verification, a locked session still needs the master password to
+unlock. Email verification alone never logs somebody into another account or decrypts a vault.
+
+Only the hash of an expiring random token is stored. A valid verification sets `email_verified=true`,
+clears that token/expiry, and records the audit event. The check reads the database on protected requests,
+so an old session cannot bypass it. Existing unverified accounts must also verify; no records are
+silently marked verified. Verification is required once, not at every later login.
+
+SMTP sender and delivery settings remain in `.env`/Settings. Development Mailpit captures mail locally;
+production delivery uses the deployed SMTP configuration. No schema change was needed for this gate.
+
+## Code storage and password checks
+
+Migration `c815a34e9012` adds nullable code digests/expiries and a verification attempt
+counter. Six-digit codes use a purpose- and user-bound HMAC-SHA256 digest keyed with
+`PRELOGIN_SECRET`; plaintext codes are never stored in the database. Five incorrect
+attempts invalidate the challenge. Successful verification consumes both code and
+legacy token. Recovery-code verification exchanges the code for a fresh capability
+kept only in browser memory. A refresh starts recovery again. Ordinary password
+changes and recovery-key replacement/disable invalidate pending codes too.
+
+The browser derives the candidate new password under the existing KDF parameters
+and submits `currentKdfAuthHash`; the server compares it to the stored auth verifier.
+The new vault wrapper still uses a fresh salt. This rejects current-password reuse
+by the application without sending plaintext passwords. As with the existing
+client-derived authentication protocol, the server cannot prove that two arbitrary
+client-supplied KDF proofs came from the same plaintext password.
+
+Policy is maintained in `.env` and Settings: `EMAIL_RESEND_COOLDOWN_SECONDS=45`,
+`EMAIL_CODE_TTL_MINUTES=10`, `EMAIL_CODE_MAX_ATTEMPTS=5`. New emails show the code
+prominently and link to the code-entry page. Existing link endpoints remain for
+backward compatibility. Delivery remains an in-process SMTP background task.

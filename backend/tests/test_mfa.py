@@ -5,7 +5,7 @@ import pytest
 from app.core import firebase, totp
 from app.core.config import get_settings
 
-from .helpers import b64, register
+from .helpers import b64, register, response_data
 
 PERIOD = get_settings().totp_period_seconds
 
@@ -22,14 +22,14 @@ def _enable_totp(api, user) -> tuple[str, list[str], int]:
     """Returns (secret, recovery codes, the time-step counter used to enrol)."""
     setup = api.post("/api/account/mfa/totp/setup", headers=user.headers)
     assert setup.status_code == 200
-    secret = setup.json()["secret"]
-    assert setup.json()["otpauthUri"].startswith("otpauth://totp/Vaultessa")
+    secret = response_data(setup)["secret"]
+    assert response_data(setup)["otpauthUri"].startswith("otpauth://totp/Vaultessa")
     counter = int(time.time() // PERIOD)
     enabled = api.post(
         "/api/account/mfa/totp/enable", json={"code": totp.code_at(secret, counter)}, headers=user.headers
     )
     assert enabled.status_code == 200, enabled.text
-    codes = enabled.json()["recoveryCodes"]
+    codes = response_data(enabled)["recoveryCodes"]
     assert len(codes) == 10
     return secret, codes, counter
 
@@ -40,7 +40,7 @@ def test_totp_enrolment_and_login(api):
 
     challenge = _login(api, alice)
     assert challenge.status_code == 200
-    body = challenge.json()
+    body = response_data(challenge)
     assert body["mfaRequired"] is True and "totp" in body["methods"] and "recovery" in body["methods"]
     assert "accessToken" not in body  # no session before the second step
 
@@ -59,7 +59,7 @@ def test_totp_enrolment_and_login(api):
     ok = api.post(
         "/api/auth/login/mfa", json={"mfaToken": body["mfaToken"], "method": "totp", "code": next_code}
     )
-    assert ok.status_code == 200 and ok.json()["account"]["totpEnabled"] is True
+    assert ok.status_code == 200 and response_data(ok)["account"]["totpEnabled"] is True
 
 
 def test_password_change_invalidates_pending_mfa_challenge(api):
@@ -67,7 +67,7 @@ def test_password_change_invalidates_pending_mfa_challenge(api):
 
     alice = register(api, "alice")
     _, codes, _ = _enable_totp(api, alice)
-    challenge = _login(api, alice).json()
+    challenge = response_data(_login(api, alice))
     changed = api.post(
         "/api/account/password",
         headers=alice.headers,
@@ -94,7 +94,7 @@ def test_concurrent_recovery_code_cannot_be_reused(api):
 
     alice = register(api, "alice")
     _, codes, _ = _enable_totp(api, alice)
-    challenge = _login(api, alice).json()
+    challenge = response_data(_login(api, alice))
     body = {"mfaToken": challenge["mfaToken"], "method": "recovery", "code": codes[0]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         responses = list(pool.map(lambda _: api.post("/api/auth/login/mfa", json=body), range(2)))
@@ -104,21 +104,21 @@ def test_concurrent_recovery_code_cannot_be_reused(api):
 def test_recovery_code_works_once(api):
     alice = register(api, "alice")
     _, codes, _ = _enable_totp(api, alice)
-    token = _login(api, alice).json()["mfaToken"]
+    token = response_data(_login(api, alice))["mfaToken"]
     used = api.post(
         "/api/auth/login/mfa", json={"mfaToken": token, "method": "recovery", "code": codes[0].upper()}
     )
     assert used.status_code == 200
     again = api.post("/api/auth/login/mfa", json={"mfaToken": token, "method": "recovery", "code": codes[0]})
     assert again.status_code == 401
-    overview = api.get("/api/account/security", headers=alice.headers).json()
+    overview = response_data(api.get("/api/account/security", headers=alice.headers))
     assert overview["recoveryCodesLeft"] == 9
 
 
 def test_mfa_token_cannot_be_used_as_access_token(api):
     alice = register(api, "alice")
     _enable_totp(api, alice)
-    token = _login(api, alice).json()["mfaToken"]
+    token = response_data(_login(api, alice))["mfaToken"]
     assert api.get("/api/secrets", headers={"Authorization": f"Bearer {token}"}).status_code == 401
 
 
@@ -128,9 +128,9 @@ def test_sms_via_firebase(api, monkeypatch):
     enabled = api.post(
         "/api/account/mfa/sms/enable", json={"firebaseIdToken": "signed-token"}, headers=alice.headers
     )
-    assert enabled.status_code == 200 and len(enabled.json()["recoveryCodes"]) == 10
+    assert enabled.status_code == 200 and len(response_data(enabled)["recoveryCodes"]) == 10
 
-    challenge = _login(api, alice).json()
+    challenge = response_data(_login(api, alice))
     assert challenge["methods"] == ["sms", "recovery"] and challenge["phone"] == "+919876543210"
     ok = api.post(
         "/api/auth/login/mfa",
@@ -140,7 +140,7 @@ def test_sms_via_firebase(api, monkeypatch):
 
     # a verified token for a different phone number is rejected
     monkeypatch.setattr(firebase, "verify_phone_token", lambda token: "+15550000000")
-    challenge = _login(api, alice).json()
+    challenge = response_data(_login(api, alice))
     bad = api.post(
         "/api/auth/login/mfa",
         json={"mfaToken": challenge["mfaToken"], "method": "sms", "firebaseIdToken": "x"},
@@ -161,7 +161,7 @@ def test_disabling_requires_master_password(api):
         headers=alice.headers,
     )
     assert ok.status_code == 204
-    assert _login(api, alice).json().get("accessToken")  # back to single-step login
+    assert response_data(_login(api, alice)).get("accessToken")  # back to single-step login
 
 
 def test_lockout_after_repeated_failures(api):
@@ -172,7 +172,7 @@ def test_lockout_after_repeated_failures(api):
             == 401
         )
     locked = _login(api, alice)  # even the right password is refused while locked
-    assert locked.status_code == 429 and locked.json()["error"]["code"] == "ACCOUNT_LOCKED"
+    assert locked.status_code == 429 and response_data(locked)["error"]["code"] == "ACCOUNT_LOCKED"
 
 
 @pytest.mark.parametrize("method", ["totp", "recovery"])
@@ -180,15 +180,15 @@ def test_wrong_second_step_counts_towards_lockout(api, method):
     alice = register(api, "alice")
     _enable_totp(api, alice)
     for _ in range(5):
-        token = _login(api, alice).json()["mfaToken"]
+        token = response_data(_login(api, alice))["mfaToken"]
         api.post("/api/auth/login/mfa", json={"mfaToken": token, "method": method, "code": "badbad"})
     assert _login(api, alice).status_code == 429
 
 
 def test_sessions_list_and_revoke(api):
     alice = register(api, "alice")
-    second = _login(api, alice).json()["accessToken"]
-    sessions = api.get("/api/account/sessions", headers=alice.headers).json()
+    second = response_data(_login(api, alice))["accessToken"]
+    sessions = response_data(api.get("/api/account/sessions", headers=alice.headers))
     assert len(sessions) == 2 and sum(s["current"] for s in sessions) == 1
     other = next(s for s in sessions if not s["current"])
     assert api.delete(f"/api/account/sessions/{other['id']}", headers=alice.headers).status_code == 204

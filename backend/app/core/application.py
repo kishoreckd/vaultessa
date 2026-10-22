@@ -11,6 +11,7 @@ from app.api.external_shares import public_router as public_shares_router
 from app.api.external_shares import router as external_shares_router
 from app.api.folders import router as folders_router
 from app.api.health import router as health_router
+from app.api.organizations import router as organizations_router
 from app.api.recovery import public_router as recovery_public_router
 from app.api.recovery import router as recovery_router
 from app.api.secrets import router as secrets_router
@@ -20,7 +21,9 @@ from app.api.tokens import router as tokens_router
 from app.constants.http import API_PREFIX, DOCS_PATHS
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
+from app.core.openapi import install_openapi
 from app.core.rate_limit import global_limit
+from app.utils.validation.json_validator import ApiJSONResponse
 
 
 @asynccontextmanager
@@ -43,6 +46,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
+        default_response_class=ApiJSONResponse,
         lifespan=lifespan,
         version=settings.app_version,
         docs_url="/api/docs" if docs_enabled else None,
@@ -78,6 +82,7 @@ def create_app() -> FastAPI:
 
     for router in (
         health_router,
+        organizations_router,
         auth_router,
         account_router,
         recovery_router,
@@ -93,4 +98,5 @@ def create_app() -> FastAPI:
     ):
         app.include_router(router, prefix=API_PREFIX)
 
+    install_openapi(app)
     return app

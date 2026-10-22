@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, stat
 
 from app.constants.http import REFRESH_COOKIE_PATH
 from app.core.config import get_settings
-from app.core.deps import Auth, DbSession
+from app.core.deps import DbSession, SessionAuth
 from app.core.errors import AppError, error_response
 from app.core.rate_limit import auth_limit, refresh_limit
 from app.core.security import create_access_token, create_mfa_token, decode_mfa_token
@@ -61,7 +61,7 @@ def register(
     verification_token = recovery_service.issue_verification(user)
     db.commit()
     if verification_token:
-        notify.verify_email(background, user, verification_token)
+        notify.verify_email(background, user, verification_token.token, verification_token.code)
     _set_refresh_cookie(response, token)
     return LoginResponse(
         access_token=create_access_token(user.id, session.id), account=Account.model_validate(user)
@@ -91,9 +91,12 @@ def _complete_login(
     new_device = service.is_new_device(db, user, user_agent)
     service.register_success(user)
     session, token = service.create_session(db, user.id, ip, user_agent)
+    verification_token = recovery_service.issue_verification(user) if not user.email_verified else None
     record(db, request, AuditAction.USER_LOGIN, user_id=user.id, details={"mfa": method} if method else None)
     db.commit()
-    if new_device:
+    if verification_token:
+        notify.verify_email(background, user, verification_token.token, verification_token.code)
+    if new_device and user.email_verified:
         notify.new_sign_in(background, user, ip, user_agent)
     _set_refresh_cookie(response, token)
     return LoginResponse(
@@ -164,5 +167,5 @@ def logout(request: Request, db: DbSession) -> Response:
 
 
 @router.get("/me", response_model=Account)
-def me(auth: Auth, db: DbSession):
+def me(auth: SessionAuth, db: DbSession):
     return service.get_user(db, auth.user_id)

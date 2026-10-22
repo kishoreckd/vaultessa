@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     account_lock_minutes: int = Field(default=15, gt=0)
     verification_ttl_hours: int = Field(default=24, gt=0)
     password_reset_ttl_minutes: int = Field(default=15, gt=0, le=60)
-    email_resend_cooldown_seconds: int = Field(default=60, gt=0)
+    email_resend_cooldown_seconds: int = Field(default=45, gt=0)
+    email_code_ttl_minutes: int = Field(default=10, ge=1, le=30)
+    email_code_max_attempts: int = Field(default=5, ge=1, le=10)
     max_password_reset_attempts: int = Field(default=5, ge=1, le=20)
     external_share_max_lifetime_days: int = Field(default=90, gt=0)
     external_share_max_code_attempts: int = Field(default=5, ge=1, le=20)
@@ -69,10 +71,17 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_starttls: bool = False
     smtp_timeout_seconds: int = Field(default=10, gt=0, le=120)
+    mailpit_base_url: str | None = None  # Optional local SMTP acceptance test inbox.
     smtp_from: str | None = None
     expiry_reminders_enabled: bool = True
     expiry_reminder_poll_seconds: int = Field(default=300, ge=30, le=86400)
     expiry_reminder_batch_size: int = Field(default=20, ge=1, le=100)
+    organization_invitation_ttl_days: int = Field(default=7, ge=1, le=30)
+    organization_invitation_cooldown_seconds: int = Field(default=60, ge=1)
+    organization_max_members: int = Field(default=500, ge=2, le=10000)
+    organization_domain_verification_days: int = Field(default=30, ge=1, le=90)
+    organization_dns_resolver_url: str = "https://dns.google/resolve"
+    organization_dns_timeout_seconds: int = Field(default=5, ge=1, le=15)
     # Public origin(s) of the web app; links in emails must start with one of these.
     app_base_url: str
 
@@ -140,6 +149,18 @@ class Settings(BaseSettings):
                     raise ValueError("Production app URLs cannot use loopback or unspecified addresses")
         if not self.cors_origins:
             raise ValueError("CORS_ORIGINS must contain at least one origin")
+        resolver = urlsplit(self.organization_dns_resolver_url)
+        if (
+            resolver.scheme != "https"
+            or not resolver.hostname
+            or resolver.username
+            or resolver.password
+            or resolver.query
+            or resolver.fragment
+        ):
+            raise ValueError(
+                "ORGANIZATION_DNS_RESOLVER_URL must be a trusted HTTPS endpoint without credentials or query"
+            )
         if self.smtp_host and not self.smtp_from:
             raise ValueError("SMTP_FROM is required when SMTP_HOST is configured")
         self.app_base_url = self.app_base_url.rstrip("/")

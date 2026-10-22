@@ -59,6 +59,7 @@ class VaultItem(ApiModel):
     created_at: datetime
     updated_at: datetime
     expires_at: datetime | None = None
+    organization_id: uuid.UUID | None = None
 
 
 class HistoryEntry(ApiModel):

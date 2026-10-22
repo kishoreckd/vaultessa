@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import {
   Activity,
+  Building2,
   Keyboard,
   Link2,
   Lock,
@@ -42,11 +43,17 @@ import { usePrefs } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/stores/session';
 
-const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }> = [
+const NAV: Array<{
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+}> = [
   { to: '/', label: 'Vault', icon: Vault, end: true },
   { to: '/security', label: 'Security', icon: ShieldCheck },
   { to: '/generator', label: 'Generator', icon: WandSparkles },
   { to: '/links', label: 'Shared', icon: Link2 },
+  { to: '/teams', label: 'Teams', icon: Building2 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -90,7 +97,7 @@ export function AppLayout() {
             <VaultessaLogo className="text-base" />
           </NavLink>
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
             {NAV.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -187,14 +194,14 @@ export function AppLayout() {
         </div>
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 md:pb-8">
+      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 lg:pb-8">
         <Outlet />
       </main>
 
       {/* Bottom tab bar on phones (thumb reach). */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t bg-background lg:hidden"
       >
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink

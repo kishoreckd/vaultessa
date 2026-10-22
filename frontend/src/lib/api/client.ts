@@ -10,6 +10,26 @@ export class ApiError extends Error {
   }
 }
 
+// Public build-time setting only. Keep API requests on the app origin for refresh cookies.
+const apiBasePath = (import.meta.env?.VITE_API_BASE_PATH || '/api').replace(/\/+$/, '');
+if (!/^\/(?!\/)[A-Za-z0-9/_-]+$/.test(apiBasePath)) {
+  throw new Error('VITE_API_BASE_PATH must be a same-origin path such as /api');
+}
+
+export type ApiEnvelope<T> =
+  | { status: 'success'; message: string; data: T }
+  | { status: 'error'; message: string; data: { code: string; details?: unknown[] } };
+
+/** Keep transport envelopes in the API layer; forms receive data and actionable messages. */
+export function responseData<T>(body: ApiEnvelope<T>): T {
+  if (body.status !== 'success') throw new Error(body.message);
+  if (body.data === null) return { message: body.message } as T;
+  if (body.message !== 'Success' && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    return { ...body.data, message: body.message };
+  }
+  return body.data;
+}
+
 // The access token lives only in memory. The refresh token is an httpOnly cookie the JS can't read.
 let accessToken: string | null = null;
 let refreshing: Promise<string | null> | null = null;
@@ -28,9 +48,9 @@ export function setUnauthorizedHandler(handler: () => void) {
 export function refreshAccessToken(): Promise<string | null> {
   refreshing ??= (async () => {
     try {
-      const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin' });
+      const res = await fetch(`${apiBasePath}/auth/refresh`, { method: 'POST', credentials: 'same-origin' });
       if (!res.ok) return null;
-      const data = (await res.json()) as { accessToken: string };
+      const data = responseData((await res.json()) as ApiEnvelope<{ accessToken: string }>);
       accessToken = data.accessToken;
       return accessToken;
     } catch {
@@ -55,7 +75,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}, re
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${apiBasePath}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -68,9 +88,15 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}, re
   }
   if (res.status === 204) return undefined as T;
 
-  const data = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
-  if (!res.ok) {
-    throw new ApiError(res.status, data?.error?.code ?? 'INTERNAL', data?.error?.message ?? res.statusText);
+  const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!res.ok || envelope?.status === 'error') {
+    throw new ApiError(
+      res.status,
+      envelope?.status === 'error' ? (envelope.data?.code ?? 'INTERNAL') : 'INTERNAL',
+      envelope?.message ?? res.statusText,
+    );
   }
-  return data as T;
+  if (!envelope || envelope.status !== 'success')
+    throw new ApiError(res.status, 'INTERNAL', 'Invalid API response');
+  return responseData(envelope);
 }

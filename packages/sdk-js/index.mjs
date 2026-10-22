@@ -36,7 +36,9 @@ export class VaultessaClient {
     const { credential, key } = await this.keys;
     const response = await fetch(`${this.url}/api/machine/secrets`, { headers: { Authorization: `Bearer ${credential}` }, redirect: 'error', signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error(`Vaultessa request failed (${response.status})`);
-    const rows = await response.json();
+    const envelope = await response.json();
+    if (envelope.status !== 'success' || !Array.isArray(envelope.data)) throw new Error(envelope.message || 'Invalid Vaultessa response');
+    const rows = envelope.data;
     return Promise.all(rows.map(async (row) => {
       const raw = await decrypt(key, row.wrappedKey);
       try {

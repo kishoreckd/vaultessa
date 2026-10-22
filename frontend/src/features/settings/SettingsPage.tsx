@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Lock, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router';
 import { FormField } from '@/components/common/form-field';
 import { PageHeader } from '@/components/common/page';
 import { ShortcutsList } from '@/components/layout/shortcuts-dialog';
@@ -38,6 +39,12 @@ function Section({
 }
 
 export function SettingsPage() {
+  const location = useLocation();
+  useEffect(() => {
+    if (location.hash === '#account-security') {
+      document.getElementById('account-security')?.scrollIntoView({ block: 'start' });
+    }
+  }, [location.hash]);
   const account = useSession((s) => s.account);
   const lock = useSession((s) => s.lock);
   const prefs = usePrefs();
@@ -145,8 +152,10 @@ export function SettingsPage() {
         <ChangePassword />
       </Section>
 
-      <AccountSecurity />
-      <VaultRecovery />
+      <div id="account-security" className="scroll-mt-6 grid gap-6" tabIndex={-1}>
+        <AccountSecurity />
+        <VaultRecovery />
+      </div>
       <ImportExport />
 
       <Section

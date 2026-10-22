@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from .helpers import ENC, b64, create_secret, register, share
+from .helpers import ENC, b64, create_secret, register, response_data, share
 
 CODE_SALT = b64("sixteen-byte-slt")
 VERIFIER = b64("client-derived-code-verifier")
@@ -18,7 +18,7 @@ def _create(api, user, secret_id, **overrides):
 def test_update_link_limits_preserves_usage_and_checks_ownership(api):
     alice, bob = register(api, "alice"), register(api, "bob")
     item = create_secret(api, alice)
-    link = _create(api, alice, item["id"], maxViews=5).json()
+    link = response_data(_create(api, alice, item["id"], maxViews=5))
     url = f"/api/external-shares/{link['id']}/limits"
     body = {"expiresAt": _expires(48), "maxViews": 10}
     assert api.patch(url, json=body).status_code == 401
@@ -26,11 +26,16 @@ def test_update_link_limits_preserves_usage_and_checks_ownership(api):
     assert api.post(f"/api/public/shares/{link['id']}/open", json={}).status_code == 200
     changed = api.patch(url, json=body, headers=alice.headers)
     assert changed.status_code == 200, changed.text
-    assert changed.json()["viewCount"] == 1 and changed.json()["maxViews"] == 10
-    events = api.get("/api/audit", params={"linkId": link["id"]}, headers=alice.headers).json()["items"]
+    assert response_data(changed)["viewCount"] == 1 and response_data(changed)["maxViews"] == 10
+    events = response_data(api.get("/api/audit", params={"linkId": link["id"]}, headers=alice.headers))[
+        "items"
+    ]
     assert any(event["action"] == "EXTERNAL_SHARE_VIEW" for event in events)
     assert all(event["metadata"]["linkId"] == link["id"] for event in events)
-    assert api.get("/api/audit", params={"linkId": link["id"]}, headers=bob.headers).json()["items"] == []
+    assert (
+        response_data(api.get("/api/audit", params={"linkId": link["id"]}, headers=bob.headers))["items"]
+        == []
+    )
     assert api.patch(url, json={**body, "maxViews": 1}, headers=alice.headers).status_code == 400
     assert api.patch(url, json={**body, "maxViews": 101}, headers=alice.headers).status_code == 400
     api.delete(f"/api/external-shares/{link['id']}", headers=alice.headers)
@@ -42,7 +47,7 @@ def test_one_time_link_cannot_be_opened_concurrently(api):
 
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    link = _create(api, alice, item["id"], maxViews=1).json()
+    link = response_data(_create(api, alice, item["id"], maxViews=1))
     with ThreadPoolExecutor(max_workers=4) as pool:
         responses = list(
             pool.map(lambda _: api.post(f"/api/public/shares/{link['id']}/open", json={}), range(4))
@@ -55,13 +60,13 @@ def test_one_time_link_is_deleted_after_first_view(api):
     item = create_secret(api, alice)
     created = _create(api, alice, item["id"], maxViews=1, recipientEmail="Guest@Example.com")
     assert created.status_code == 201, created.text
-    link = created.json()
+    link = response_data(created)
     assert link["status"] == "active" and link["recipientEmail"] == "guest@example.com"
     assert link["outsideDomain"] is False  # alice@example.com → guest@example.com: same domain
-    other = _create(api, alice, item["id"], recipientEmail="someone@gmail.com").json()
+    other = response_data(_create(api, alice, item["id"], recipientEmail="someone@gmail.com"))
     assert other["outsideDomain"] is True
 
-    info = api.get(f"/api/public/shares/{link['id']}").json()
+    info = response_data(api.get(f"/api/public/shares/{link['id']}"))
     assert info == {
         "status": "active",
         "senderName": "Alice",
@@ -72,30 +77,30 @@ def test_one_time_link_is_deleted_after_first_view(api):
     }
 
     opened = api.post(f"/api/public/shares/{link['id']}/open", json={})
-    assert opened.status_code == 200 and opened.json()["encryptedData"] == ENC
-    assert opened.json()["viewsLeft"] == 0
+    assert opened.status_code == 200 and response_data(opened)["encryptedData"] == ENC
+    assert response_data(opened)["viewsLeft"] == 0
 
     again = api.post(f"/api/public/shares/{link['id']}/open", json={})
     assert again.status_code == 410
-    assert api.get(f"/api/public/shares/{link['id']}").json()["status"] == "used"
+    assert response_data(api.get(f"/api/public/shares/{link['id']}"))["status"] == "used"
 
     # the sender sees it was opened
-    actions = [e["action"] for e in api.get("/api/audit", headers=alice.headers).json()["items"]]
+    actions = [e["action"] for e in response_data(api.get("/api/audit", headers=alice.headers))["items"]]
     assert "EXTERNAL_SHARE_VIEW" in actions
 
 
 def test_access_code_is_required_and_attempt_limited(api):
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    link = _create(api, alice, item["id"], codeSalt=CODE_SALT, codeVerifier=VERIFIER).json()
+    link = response_data(_create(api, alice, item["id"], codeSalt=CODE_SALT, codeVerifier=VERIFIER))
     assert link["hasCode"] is True
 
     assert api.post(f"/api/public/shares/{link['id']}/open", json={}).status_code == 401
     wrong = api.post(f"/api/public/shares/{link['id']}/open", json={"codeVerifier": b64("nope")})
-    assert wrong.status_code == 401 and "3 attempts left" in wrong.json()["error"]["message"]
+    assert wrong.status_code == 401 and "3 attempts left" in response_data(wrong)["error"]["message"]
 
     ok = api.post(f"/api/public/shares/{link['id']}/open", json={"codeVerifier": VERIFIER})
-    assert ok.status_code == 200 and ok.json()["codeSalt"] == CODE_SALT
+    assert ok.status_code == 200 and response_data(ok)["codeSalt"] == CODE_SALT
 
     for _ in range(2):
         api.post(f"/api/public/shares/{link['id']}/open", json={"codeVerifier": b64("nope")})
@@ -110,15 +115,17 @@ def test_access_code_is_required_and_attempt_limited(api):
 def test_time_limited_link_allows_multiple_views_until_revoked(api):
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    link = _create(api, alice, item["id"]).json()
+    link = response_data(_create(api, alice, item["id"]))
     for _ in range(3):
         assert api.post(f"/api/public/shares/{link['id']}/open", json={}).status_code == 200
-    listed = api.get("/api/external-shares", params={"secretId": item["id"]}, headers=alice.headers).json()
+    listed = response_data(
+        api.get("/api/external-shares", params={"secretId": item["id"]}, headers=alice.headers)
+    )
     assert listed[0]["viewCount"] == 3
 
     assert api.delete(f"/api/external-shares/{link['id']}", headers=alice.headers).status_code == 204
     assert api.post(f"/api/public/shares/{link['id']}/open", json={}).status_code == 410
-    assert api.get(f"/api/public/shares/{link['id']}").json()["status"] == "revoked"
+    assert response_data(api.get(f"/api/public/shares/{link['id']}"))["status"] == "revoked"
 
 
 def test_creation_rules(api):
@@ -139,7 +146,7 @@ def test_creation_rules(api):
 def test_email_requires_matching_link(api):
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    link = _create(api, alice, item["id"], recipientEmail="guest@example.com").json()
+    link = response_data(_create(api, alice, item["id"], recipientEmail="guest@example.com"))
     bad = api.post(
         f"/api/external-shares/{link['id']}/email",
         json={"link": "https://evil.example/phish"},
@@ -151,14 +158,14 @@ def test_email_requires_matching_link(api):
 def test_reopen_reactivates_the_same_link(api):
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    link = _create(
-        api, alice, item["id"], maxViews=1, ownerKey=ENC, codeSalt=CODE_SALT, codeVerifier=VERIFIER
-    ).json()
+    link = response_data(
+        _create(api, alice, item["id"], maxViews=1, ownerKey=ENC, codeSalt=CODE_SALT, codeVerifier=VERIFIER)
+    )
     assert link["ownerKey"] == ENC
     assert (
         api.post(f"/api/public/shares/{link['id']}/open", json={"codeVerifier": VERIFIER}).status_code == 200
     )
-    assert api.get(f"/api/public/shares/{link['id']}").json()["status"] == "used"
+    assert response_data(api.get(f"/api/public/shares/{link['id']}"))["status"] == "used"
 
     new_verifier = b64("new-verifier")
     reopened = api.post(
@@ -173,7 +180,7 @@ def test_reopen_reactivates_the_same_link(api):
         headers=alice.headers,
     )
     assert reopened.status_code == 200, reopened.text
-    assert reopened.json()["status"] == "active" and reopened.json()["viewCount"] == 0
+    assert response_data(reopened)["status"] == "active" and response_data(reopened)["viewCount"] == 0
     # same URL works again, with the (re-derived) code
     opened = api.post(f"/api/public/shares/{link['id']}/open", json={"codeVerifier": new_verifier})
     assert opened.status_code == 200
@@ -182,13 +189,13 @@ def test_reopen_reactivates_the_same_link(api):
 def test_reopen_rules(api):
     alice, mallory = register(api, "alice"), register(api, "mallory")
     item = create_secret(api, alice)
-    legacy = _create(api, alice, item["id"]).json()  # no ownerKey
+    legacy = response_data(_create(api, alice, item["id"]))  # no ownerKey
     body = {"encryptedData": ENC, "expiresAt": _expires()}
     assert (
         api.post(f"/api/external-shares/{legacy['id']}/reopen", json=body, headers=alice.headers).status_code
         == 400
     )
-    owned = _create(api, alice, item["id"], ownerKey=ENC).json()
+    owned = response_data(_create(api, alice, item["id"], ownerKey=ENC))
     assert (
         api.post(f"/api/external-shares/{owned['id']}/reopen", json=body, headers=mallory.headers).status_code
         == 404

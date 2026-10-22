@@ -8,6 +8,7 @@ from app.core.errors import AppError
 from app.db.models.secret_access_model import SecretAccess
 from app.db.models.user_model import User
 from app.schemas.sharing import GrantShareRequest, ShareOut
+from app.services.organizations_service import require_member
 from app.services.secrets_service import require_access
 
 
@@ -35,13 +36,19 @@ def list_shares(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> list[S
             permission=row.permission,
             is_owner=row.user_id == access.secret.owner_id,
             accepted=row.key_wrap == KeyWrap.VAULT,
+            organization_id=row.organization_id,
         )
         for row in rows.unique()
     ]
 
 
 def grant_share(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID, data: GrantShareRequest) -> None:
-    require_access(db, user_id, secret_id, Permission.MANAGE)
+    access = require_access(db, user_id, secret_id, Permission.MANAGE)
+    if access.organization_id and data.organization_id != access.organization_id:
+        raise AppError.forbidden("Keep delegated team shares within the same organisation")
+    if data.organization_id:
+        require_member(db, user_id, data.organization_id)
+        require_member(db, data.user_id, data.organization_id)
     if data.user_id == user_id:
         raise AppError.bad_request("You already have access to this secret")
     if db.get(User, data.user_id) is None:
@@ -57,6 +64,7 @@ def grant_share(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID, data: Gra
             key_wrap=KeyWrap.RSA,
             permission=data.permission,
             granted_by_id=user_id,
+            organization_id=data.organization_id,
         )
     )
     db.flush()

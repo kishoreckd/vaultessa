@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { PageHeader, Loading } from '@/components/common/page';
 import { Drawer } from '@/components/common/drawer';
@@ -16,11 +16,13 @@ import { useExternalShares, linkKeys, STATUS_LABEL } from './hooks';
 import { LinkRow } from './LinkRow';
 
 export function SharedLinksPage() {
+  const [params] = useSearchParams();
+  const linkedId = params.get('link');
   const links = useExternalShares();
   const vault = useVaultItems();
   const [tab, setTab] = useState('links');
-  const [all, setAll] = useState(false);
-  const [selected, setSelected] = useState<string>();
+  const [all, setAll] = useState(Boolean(linkedId) || params.get('include') === 'inactive');
+  const [selected, setSelected] = useState<string | undefined>(linkedId ?? undefined);
   const rows = (links.data ?? []).filter((l) => all || l.status === 'active');
   const link = links.data?.find((l) => l.id === selected);
   const owned = (vault.data ?? []).filter((item) => item.isOwner && item.sharedWith > 0);

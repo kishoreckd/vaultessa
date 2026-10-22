@@ -70,3 +70,9 @@ These are local packages; they have not been published to npm or PyPI.
 
 The browser tests, Node tests and Python tests share a synthetic interoperability
 fixture at `packages/test-vectors.json`. It contains no live credentials.
+
+## JSON transport
+
+Machine API responses now use `{ status, message, data }`. Both SDKs unwrap the
+`data` array before decrypting and reject malformed/non-success envelopes. Upgrade
+the API and repository SDKs together; older clients expecting a bare array need updating.

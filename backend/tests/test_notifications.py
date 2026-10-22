@@ -2,7 +2,7 @@ import pytest
 
 from app.services import notifications_service as notify
 
-from .helpers import create_secret, register, share
+from .helpers import create_secret, register, response_data, share
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def test_sharing_emails_and_opt_out(api, outbox):
 
     # bob turns sharing emails off; the next change is silent
     prefs = api.put("/api/account/notifications", json={"sharing": False, "links": True}, headers=bob.headers)
-    assert prefs.json() == {"sharing": False, "links": True, "expiry": True}
+    assert response_data(prefs) == {"sharing": False, "links": True, "expiry": True}
     before = len(outbox)
     api.patch(
         f"/api/secrets/{item['id']}/shares/{bob.id}", json={"permission": "MODIFY"}, headers=alice.headers

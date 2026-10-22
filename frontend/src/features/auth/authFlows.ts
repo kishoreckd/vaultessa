@@ -61,7 +61,8 @@ export async function register(input: { name: string; email: string; password: s
     protectedPrivateKey,
   });
   setAccessToken(res.accessToken);
-  useSession.getState().unlock(res.account, { vaultKey, privateKey });
+  if (res.account.emailVerified) useSession.getState().unlock(res.account, { vaultKey, privateKey });
+  else useSession.getState().setLocked(res.account);
 }
 
 export type PendingMfa = {
@@ -79,20 +80,24 @@ export async function login(emailInput: string, password: string): Promise<Pendi
       challenge: res,
       complete: async (method, code) => {
         const result = await authApi.mfa({ mfaToken: res.mfaToken, method, code });
-        const keys = await unwrapAccountKeys(masterKey, result.account);
         setAccessToken(result.accessToken);
-        useSession.getState().unlock(result.account, keys);
+        if (result.account.emailVerified)
+          useSession.getState().unlock(result.account, await unwrapAccountKeys(masterKey, result.account));
+        else useSession.getState().setLocked(result.account);
       },
     };
   }
   setAccessToken(res.accessToken);
-  useSession.getState().unlock(res.account, await unwrapAccountKeys(masterKey, res.account));
+  if (res.account.emailVerified)
+    useSession.getState().unlock(res.account, await unwrapAccountKeys(masterKey, res.account));
+  else useSession.getState().setLocked(res.account);
 }
 
 /** Unlock with an existing session. Throws CryptoError if the master password is wrong. */
 export async function unlock(password: string) {
   const { account } = useSession.getState();
   if (!account) throw new Error('No session');
+  if (!account.emailVerified) throw new Error('Verify your email address before unlocking your vault.');
   const masterKey = await deriveMasterKey(password, account.kdfSalt, account.kdfIterations);
   useSession.getState().unlock(account, await unwrapAccountKeys(masterKey, account));
 }
@@ -141,12 +146,16 @@ export async function recoverVault(token: string, recoveryKey: string, newPasswo
   const info = await recoveryApi.inspect(token);
   const { raw, recoveryAuth } = await unwrapVaultForRecovery(info.wrappedVaultKey, recoveryKey);
   try {
+    const currentKdfAuthHash = await deriveAuthHash(
+      await deriveMasterKey(newPassword, info.kdfSalt, info.kdfIterations),
+    );
     const kdfSalt = generateKdfSalt();
     const kdfIterations = DEFAULT_KDF_ITERATIONS;
     const master = await deriveMasterKey(newPassword, kdfSalt, kdfIterations);
     await recoveryApi.reset({
       token,
       recoveryAuth,
+      currentKdfAuthHash,
       newAuthHash: await deriveAuthHash(master),
       kdfSalt,
       kdfIterations,

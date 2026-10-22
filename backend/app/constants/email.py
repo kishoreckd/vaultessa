@@ -11,8 +11,20 @@ THEME = {
     "background": "#F5F3FB",
     "lavender": "#F7F6FF",
     "border": "#E9E5F4",
+    "button_text": "#FFFFFF",
+}
+DARK_THEME = {
+    "background": "#11101B",
+    "card": "#1D1B2D",
+    "lavender": "#28243D",
+    "ink": "#F3F0FF",
+    "muted": "#C0B9D5",
+    "border": "#48405F",
+    "accent": "#BDB5FF",
 }
 ILLUSTRATIONS = {
+    "organization_invitation": "sharing",
+    "team_membership": "sharing",
     "message": "welcome",
     "welcome": "welcome",
     "verify_email": "verification",

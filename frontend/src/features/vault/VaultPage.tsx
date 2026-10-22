@@ -114,6 +114,12 @@ export function VaultPage() {
   // Deep link from other pages (e.g. Shared links): /?item=<id> opens that item, then cleans the URL.
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedId = searchParams.get('item');
+  const sharedOnly = searchParams.get('view') === 'shared';
+  useEffect(() => {
+    if (!sharedOnly) return;
+    setFilter({ kind: 'shared' });
+    setSearch('');
+  }, [sharedOnly]);
   useEffect(() => {
     if (!linkedId || !items.data) return;
     if (all.some((i) => i.id === linkedId)) {

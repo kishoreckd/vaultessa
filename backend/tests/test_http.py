@@ -1,10 +1,14 @@
 """HTTP-layer behaviour that never reaches the database."""
 
+from .helpers import response_data
+
 
 def test_protected_routes_require_a_token(client):
     response = client.get("/api/secrets")
     assert response.status_code == 401
-    assert response.json() == {"error": {"code": "UNAUTHORIZED", "message": "Authentication required"}}
+    assert response_data(response) == {
+        "error": {"code": "UNAUTHORIZED", "message": "Authentication required"}
+    }
 
 
 def test_forged_token_is_rejected(client):
@@ -15,7 +19,7 @@ def test_forged_token_is_rejected(client):
 def test_validation_errors_use_the_standard_shape(client):
     response = client.post("/api/auth/login", json={"email": "nope"})
     assert response.status_code == 400
-    body = response.json()["error"]
+    body = response_data(response)["error"]
     assert body["code"] == "VALIDATION_ERROR"
     assert {d["path"] for d in body["details"]} == {"email", "authHash"}
 
@@ -29,7 +33,7 @@ def test_unknown_fields_are_rejected(client):
 def test_unknown_routes_return_json_404(client):
     response = client.get("/api/nope")
     assert response.status_code == 404
-    assert response.json()["error"]["code"] == "NOT_FOUND"
+    assert response_data(response)["error"]["code"] == "NOT_FOUND"
 
 
 def test_security_headers(client):

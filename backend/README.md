@@ -67,3 +67,19 @@ scripts/                     local email preview generator
 - Services raise `AppError` and never commit; routers add the audit row and commit once, so the change
   and its audit entry are atomic.
 - No access to a resource → 404; insufficient permission → 403.
+
+## Teams and local mail checks
+
+The web app now includes `/teams` for organisation creation, verified-email invitations, membership roles, ownership transfer and optional DNS-verified domain joining. Item sharing supports optional team scope. See [teams](../docs/17-organisations-and-teams.md).
+
+Run `.venv\Scripts\python.exe scripts/verify_local_email.py` for development-only Mailpit integration checks. It refuses non-loopback SMTP/inbox destinations and sends only fictional example messages. Firebase SMS is deferred.
+
+### Shared JSON response format
+
+All JSON API output uses `{ status, message, data }` through
+`app/utils/validation/json_validator.py`. Return domain DTOs from handlers normally;
+FastAPI filters/validates them before `ApiJSONResponse` wraps the response. Use
+`JsonResponse.success/error` for explicit responses, preserving status, headers
+and background tasks. For errors, machine-readable codes live in `data.code`.
+Keep HTTP 204 bodyless; do not wrap service return values or the OpenAPI document.
+The frontend and both repository SDKs unwrap this envelope. See `docs/05-api-spec.md`.

@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, CircleCheck, Circle, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { TextField } from '@/components/common/form-field';
@@ -14,6 +14,7 @@ import { ApiError } from '@/lib/api/client';
 import { emailError, requiredText } from '@/lib/validation';
 import { estimateStrength } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
+import { authDestination } from '@/lib/auth-destination';
 import { AuthCard } from './AuthCard';
 import { register } from './authFlows';
 
@@ -34,6 +35,8 @@ function Requirement({ met, children }: { met: boolean; children: string }) {
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const destination = authDestination(location.state);
   const ackId = useId();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,10 +78,10 @@ export function RegisterPage() {
     setBusy(true);
     try {
       await register({ name, email, password });
-      toast.success('Your vault is ready', {
-        description: 'Check your email to verify your address, then enable vault recovery in Settings.',
+      toast.success('Check your inbox', {
+        description: 'Verify your email address before opening your vault.',
       });
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create your account. Please try again.');
     } finally {
@@ -189,7 +192,11 @@ export function RegisterPage() {
       </form>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link
+          state={{ from: destination }}
+          to="/login"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { TextField } from '@/components/common/form-field';
 import { PasswordInput } from '@/components/common/password-input';
@@ -9,11 +9,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/lib/api/client';
 import { emailError } from '@/lib/validation';
+import { authDestination } from '@/lib/auth-destination';
 import { AuthCard } from './AuthCard';
 import { login, type PendingMfa } from './authFlows';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const destination = authDestination(location.state);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function LoginPage() {
         setMethod(next.challenge.methods.includes('totp') ? 'totp' : 'recovery');
         return;
       }
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
@@ -69,7 +72,7 @@ export function LoginPage() {
             try {
               await pending.complete(method, code.trim());
               setPending(undefined);
-              navigate('/', { replace: true });
+              navigate(destination, { replace: true });
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Could not verify the code.');
               setCode('');
@@ -175,7 +178,7 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New to Vaultessa?{' '}
-        <Link to="/register" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link state={{ from: destination }} to="/register" className="font-medium text-primary underline-offset-4 hover:underline">
           Create a free account
         </Link>
       </p>

@@ -33,9 +33,24 @@ def main():
     base_url = get_settings().app_base_url
     examples = {"share-invitation": templates.share_invitation(share, base_url + "/s/preview#demo-key")}
     content = {
-        "verify-email": templates.verification_email("Priya", base_url + "/verify-email#token=preview-only"),
+        "team-invitation": templates.organization_invitation(
+            "Arjun",
+            "Example team",
+            "priya@example.com",
+            "MEMBER",
+            datetime.now(UTC) + timedelta(days=7),
+            "preview",
+        ),
+        "team-membership": templates.team_membership_changed(
+            "Priya", "Example team", "Your role is now admin."
+        ),
+        "verify-email": templates.verification_email(
+            "Priya", base_url + "/verify-email#token=preview-only", "123456"
+        ),
         "welcome": templates.welcome_email("Priya", base_url),
-        "forgot-password": templates.forgot_password_email("Priya", base_url + "/recover#token=preview-only"),
+        "forgot-password": templates.forgot_password_email(
+            "Priya", base_url + "/recover#token=preview-only", "654321"
+        ),
         "recovery-completed": templates.recovery_completed_email("Priya", base_url),
         "recovery-enabled": templates.recovery_key_email(True, base_url),
         "recovery-disabled": templates.recovery_key_email(False, base_url),
@@ -46,6 +61,9 @@ def main():
             datetime.now(UTC) - timedelta(days=1), "expired", base_url + "/?item=preview"
         ),
     }
+    for value in content.values():
+        if not any(p.startswith(("Hi ", "Welcome,")) for p in value.paragraphs):
+            value.greeting = f"Hi {user.name},"
     examples.update({name: templates.render(value) for name, value in content.items()})
     notify.email_enabled = lambda: True
 
@@ -67,7 +85,18 @@ def main():
     for name, (subject, text, html) in examples.items():
         for cid, path in EMAIL_ASSETS.items():
             html = html.replace("cid:" + cid, "../static/email/" + path.name)
+        html = html.replace(
+            '<table role="presentation" width="100%"',
+            '<div style="padding:10px;text-align:center;font:12px Arial;color:#716B8B">'
+            "Preview only &middot; fictional names, recipients and links</div>"
+            '<table role="presentation" width="100%"',
+            1,
+        )
         (output / f"{name}.html").write_text(html, encoding="utf-8")
+        dark_html = html.replace(
+            "</head>", "<style>" + templates.render_dark_styles(force=True) + "</style></head>"
+        )
+        (output / f"{name}.dark.html").write_text(dark_html, encoding="utf-8")
         # Remove only this generator's legacy flat text samples. Plain text still ships inside emails.
         legacy = output / f"{name}.txt"
         if legacy.exists():
@@ -78,12 +107,17 @@ def main():
                 f"Subject: {subject}\n\n{text}", encoding="utf-8"
             )
     links = "".join(
-        f'<a href="{name}.html" target="email-preview">{escape(name.replace("-", " ").title())}</a>'
+        f'<div class="preview-pair"><span>{escape(name.replace("-", " ").title())}</span>'
+        f'<a href="{name}.html" target="email-preview" aria-label="{escape(name)} light">Light</a>'
+        f'<a href="{name}.dark.html" target="email-preview" aria-label="{escape(name)} dark">Dark</a></div>'
         for name in examples
     )
     index = templates.render_preview_gallery(links)
     (output / "index.html").write_text(index, encoding="utf-8")
-    print(f"Generated {len(examples)} illustrated HTML previews and index.html")
+    print(
+        f"Generated {len(examples)} illustrated emails in light and dark "
+        f"({len(examples) * 2} previews) and index.html"
+    )
 
 
 if __name__ == "__main__":

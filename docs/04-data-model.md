@@ -118,3 +118,7 @@ Migration `01176535d83b` adds to `users`: `email_verified` (false for existing r
 Raw email tokens, recovery keys, unwrapped vault keys and master passwords are not
 stored. Successful recovery clears its key/envelope and reset token, deletes all
 sessions and revokes API tokens/grants without changing item ciphertext or MFA.
+
+## Organisation membership
+
+`organizations`, `organization_members`, `organization_invitations` and `organization_domains` store operational team metadata. `secret_accesses.organization_id` is nullable and marks team-scoped grants. Existing grants remain personal. See [teams](17-organisations-and-teams.md) for roles, concurrency, expiry and removal rules.

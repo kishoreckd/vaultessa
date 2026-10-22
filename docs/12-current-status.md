@@ -27,8 +27,10 @@
 
 These are future product phases, not completed by the current personal-vault work:
 
-- Organisations, DNS-verified domains, invitations, roles, groups, shared collections,
-  suspension, offboarding/ownership transfer, enforced domain policies and admin reporting.
+- Groups, organisation-owned shared collections, corporate asset transfer, enforced domain policies and admin reporting.
+  Organisation creation, email-bound invitations, owner/admin/member roles, DNS-verified domain joining,
+  membership deactivation, organisation ownership transfer and team-scoped item grants are now implemented.
+  See [17-organisations-and-teams.md](17-organisations-and-teams.md).
 - Google/OIDC SSO, SCIM/directory sync, opt-in recovery and enterprise log export.
 - Browser extension with origin matching/autofill, mobile and desktop applications.
 - Passkey/Windows Hello unlock, item TOTP codes, trash/restore, tags/custom-field UI,
@@ -57,7 +59,7 @@ Frontend: `npm run typecheck`, `npm test`, `npm run build`. SDK checks are docum
 in `packages/README.md`. No production email, deployment, commit or package publication
 was performed during this continuation.
 
-Final checks: 70 backend tests passed against Docker PostgreSQL (no skips), 34 frontend
+Earlier personal-vault baseline: 70 backend tests passed against Docker PostgreSQL (no skips), 34 frontend
 tests passed, 4 Node SDK tests passed, 3 Python SDK tests passed. TypeScript project
 checking, production build and backend Ruff checks passed. Vite still reports a large
 main bundle; optional Settings/Developer/Activity/Generator pages are loaded lazily.
@@ -67,3 +69,46 @@ main bundle; optional Settings/Developer/Activity/Generator pages are loaded laz
 Welcome/verification emails, resend/confirmation pages, opt-in vault recovery setup
 and forgotten-master-password recovery are implemented. Recovery preserves MFA and
 requires a key saved in advance. See [13-email-verification-and-recovery.md](13-email-verification-and-recovery.md).
+
+## Teams and email completion follow-up
+
+Teams UI/API and migrations are implemented. Email now has 21 examples with 42 light/dark previews.
+Local Mailpit integration verified all 21 multipart messages and inline PNG assets. Firebase SMS remains deferred.
+A browser surface is not connected, so real inbox rendering and browser click-through remain unverified.
+
+Latest team/email checks: **105 backend tests passed**, **51 frontend tests passed**, typecheck/build passed, Ruff passed, migration roundtrip/RLS checks passed, and Alembic reports no pending model changes. Local Mailpit verified **21** fictional multipart emails with embedded assets. Both additive migrations are applied locally.
+
+Mandatory email verification is now enforced for ordinary vault access, including existing sessions and machine tokens. New and existing unverified accounts stay at the verification screen until a single-use email link is confirmed; keys stay locked until verification and master-password unlock.
+
+## Email-code verification update (22 October 2026)
+
+Signup verification and forgotten-password recovery now use six-digit email codes.
+Resend waits 45 seconds on both client and server, with refresh-persistent UI timers.
+Codes expire after 10 minutes and permit five incorrect attempts. Recovery exchanges
+the code for a single-use capability before showing the new-password form and still
+requires the saved vault recovery key. Current-password reuse is rejected without
+consuming the key. The screens use logo-free contextual artwork, accessible code
+inputs, inline errors and success/error toasts. Policy remains in `.env`/Settings.
+Previously delivered verification/recovery links continue to work explicitly.
+
+## Unified JSON responses and segmented OTP input
+
+All JSON APIs now use `{ status, message, data }` through
+`app/utils/validation/json_validator.py`. The default serializer wraps validated
+response DTOs; exception handlers use the same helper. Cookies, status codes,
+background tasks, protected DTO filtering and bodyless 204 responses are preserved.
+Swagger/OpenAPI describes envelopes but the OpenAPI document itself is unchanged
+in format. Frontend refresh/retry/error handling, both SDKs and the demo seeder
+consume the new envelope. Upgrade frontend, backend and external SDK consumers
+together; this changes the previous flat wire contract.
+
+The email verification and recovery code field uses one underlying accessible
+input with six connected visual slots, no separator, digit-only paste/autofill,
+inline field errors and resend beside the label. The existing 45-second cooldown
+still applies. This supports Priya's clear signup flow, Arjun's paste-and-submit
+workflow and Lakshmi's single labeled keyboard/screen-reader input.
+
+The copied `utils/validation/auth.py` is not part of the active authentication
+path: it references chatbot company/admin configuration absent from Vaultessa.
+Vaultessa continues using the session/JWT dependencies in `core/deps.py`.
+`utils/validation/password.py` was intentionally left untouched.

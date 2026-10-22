@@ -35,7 +35,11 @@ export type DeviceSession = {
   lastUsedAt: string;
   current: boolean;
 };
-export type NotificationPrefs = { sharing: boolean; links: boolean; expiry: boolean };
+export type NotificationPrefs = {
+  sharing: boolean;
+  links: boolean;
+  expiry: boolean;
+};
 export type AccessToken = {
   id: string;
   name: string;
@@ -48,7 +52,11 @@ export type AccessToken = {
   lastUsedIp: string | null;
 };
 
-export type Prelogin = { kdf: 'PBKDF2_SHA256'; kdfIterations: number; kdfSalt: string };
+export type Prelogin = {
+  kdf: 'PBKDF2_SHA256';
+  kdfIterations: number;
+  kdfSalt: string;
+};
 
 export const SECRET_TYPES = [
   'LOGIN',
@@ -67,6 +75,7 @@ export const PERMISSIONS = ['LOGIN_ONLY', 'VIEW', 'MODIFY', 'MANAGE'] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 export type VaultItem = {
+  organizationId?: string | null;
   id: string;
   type: SecretType;
   encryptedData: string;
@@ -86,7 +95,12 @@ export type VaultItem = {
   expiresAt?: string | null;
 };
 
-export type Folder = { id: string; encryptedName: string; createdAt: string; updatedAt: string };
+export type Folder = {
+  id: string;
+  encryptedName: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type HistoryEntry = {
   id: string;
@@ -95,9 +109,15 @@ export type HistoryEntry = {
   createdAt: string;
 };
 
-export type UserLookup = { id: string; email: string; name: string; publicKey: string };
+export type UserLookup = {
+  id: string;
+  email: string;
+  name: string;
+  publicKey: string;
+};
 
 export type Share = {
+  organizationId?: string | null;
   userId: string;
   email: string;
   name: string;

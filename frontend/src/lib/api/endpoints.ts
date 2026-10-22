@@ -22,7 +22,11 @@ import type {
 
 export const authApi = {
   prelogin: (email: string) =>
-    apiFetch<Prelogin>('/auth/prelogin', { method: 'POST', body: { email }, auth: false }),
+    apiFetch<Prelogin>('/auth/prelogin', {
+      method: 'POST',
+      body: { email },
+      auth: false,
+    }),
   register: (body: {
     email: string;
     name: string;
@@ -32,15 +36,29 @@ export const authApi = {
     protectedVaultKey: string;
     publicKey: string;
     protectedPrivateKey: string;
-  }) => apiFetch<LoginResponse>('/auth/register', { method: 'POST', body, auth: false }),
+  }) =>
+    apiFetch<LoginResponse>('/auth/register', {
+      method: 'POST',
+      body,
+      auth: false,
+    }),
   login: (body: { email: string; authHash: string }) =>
-    apiFetch<LoginResponse | MfaChallenge>('/auth/login', { method: 'POST', body, auth: false }),
+    apiFetch<LoginResponse | MfaChallenge>('/auth/login', {
+      method: 'POST',
+      body,
+      auth: false,
+    }),
   mfa: (body: {
     mfaToken: string;
     method: 'totp' | 'sms' | 'recovery';
     code?: string;
     firebaseIdToken?: string;
-  }) => apiFetch<LoginResponse>('/auth/login/mfa', { method: 'POST', body, auth: false }),
+  }) =>
+    apiFetch<LoginResponse>('/auth/login/mfa', {
+      method: 'POST',
+      body,
+      auth: false,
+    }),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST', auth: false }),
   me: () => apiFetch<Account>('/auth/me'),
 };
@@ -61,8 +79,16 @@ export const accountApi = {
       method: 'POST',
       body: { code },
     }),
+  enableSms: (firebaseIdToken: string) =>
+    apiFetch<{ recoveryCodes: string[] | null }>('/account/mfa/sms/enable', {
+      method: 'POST',
+      body: { firebaseIdToken },
+    }),
   disableMfa: (method: 'totp' | 'sms', authHash: string) =>
-    apiFetch<void>('/account/mfa/disable', { method: 'POST', body: { method, authHash } }),
+    apiFetch<void>('/account/mfa/disable', {
+      method: 'POST',
+      body: { method, authHash },
+    }),
   recoveryCodes: (authHash: string) =>
     apiFetch<{ recoveryCodes: string[] | null }>('/account/mfa/recovery-codes', {
       method: 'POST',
@@ -70,29 +96,67 @@ export const accountApi = {
     }),
   sessions: () => apiFetch<DeviceSession[]>('/account/sessions'),
   revokeSession: (id: string) => apiFetch<void>(`/account/sessions/${id}`, { method: 'DELETE' }),
-  revokeOthers: () => apiFetch<{ revoked: number }>('/account/sessions/revoke-others', { method: 'POST' }),
+  revokeOthers: () =>
+    apiFetch<{ revoked: number }>('/account/sessions/revoke-others', {
+      method: 'POST',
+    }),
   notifications: () => apiFetch<NotificationPrefs>('/account/notifications'),
   setNotifications: (body: NotificationPrefs) =>
-    apiFetch<NotificationPrefs>('/account/notifications', { method: 'PUT', body }),
+    apiFetch<NotificationPrefs>('/account/notifications', {
+      method: 'PUT',
+      body,
+    }),
 };
 
 export const recoveryApi = {
+  policy: () =>
+    apiFetch<{ resendAfterSeconds: number; codeTtlMinutes: number }>('/auth/email/policy', { auth: false }),
+  verificationStatus: () => apiFetch<{ resendAfterSeconds: number }>('/auth/email/status'),
+  verifyCode: (email: string, code: string) =>
+    apiFetch<{ message: string }>('/auth/email/verify-code', {
+      method: 'POST',
+      body: { email, code },
+      auth: false,
+    }),
+  verifyResetCode: (email: string, code: string) =>
+    apiFetch<{ token: string }>('/auth/recovery/verify-code', {
+      method: 'POST',
+      body: { email, code },
+      auth: false,
+    }),
   status: () =>
-    apiFetch<{ emailVerified: boolean; recoveryEnabled: boolean; emailAvailable: boolean }>(
-      '/account/recovery',
-    ),
+    apiFetch<{
+      emailVerified: boolean;
+      recoveryEnabled: boolean;
+      emailAvailable: boolean;
+    }>('/account/recovery'),
   requestVerification: (email: string) =>
-    apiFetch<{ message: string }>('/auth/email/request', { method: 'POST', body: { email }, auth: false }),
+    apiFetch<{ message: string; resendAfterSeconds: number }>('/auth/email/request', {
+      method: 'POST',
+      body: { email },
+      auth: false,
+    }),
   verify: (token: string) =>
-    apiFetch<{ message: string }>('/auth/email/verify', { method: 'POST', body: { token }, auth: false }),
+    apiFetch<{ message: string }>('/auth/email/verify', {
+      method: 'POST',
+      body: { token },
+      auth: false,
+    }),
   enable: (body: { authHash: string; recoveryAuth: string; wrappedVaultKey: string }) =>
     apiFetch<void>('/account/recovery', { method: 'PUT', body }),
   disable: (authHash: string) =>
-    apiFetch<void>('/account/recovery/disable', { method: 'POST', body: { authHash } }),
+    apiFetch<void>('/account/recovery/disable', {
+      method: 'POST',
+      body: { authHash },
+    }),
   requestReset: (email: string) =>
-    apiFetch<{ message: string }>('/auth/recovery/request', { method: 'POST', body: { email }, auth: false }),
+    apiFetch<{ message: string; resendAfterSeconds: number }>('/auth/recovery/request', {
+      method: 'POST',
+      body: { email },
+      auth: false,
+    }),
   inspect: (token: string) =>
-    apiFetch<{ wrappedVaultKey: string }>('/auth/recovery/inspect', {
+    apiFetch<{ wrappedVaultKey: string; kdfSalt: string; kdfIterations: number }>('/auth/recovery/inspect', {
       method: 'POST',
       body: { token },
       auth: false,
@@ -101,10 +165,16 @@ export const recoveryApi = {
     token: string;
     recoveryAuth: string;
     newAuthHash: string;
+    currentKdfAuthHash: string;
     kdfSalt: string;
     kdfIterations: number;
     protectedVaultKey: string;
-  }) => apiFetch<{ message: string }>('/auth/recovery/reset', { method: 'POST', body, auth: false }),
+  }) =>
+    apiFetch<{ message: string }>('/auth/recovery/reset', {
+      method: 'POST',
+      body,
+      auth: false,
+    }),
 };
 
 export const tokensApi = {
@@ -118,7 +188,10 @@ export const tokensApi = {
   }) => apiFetch<AccessToken>('/tokens', { method: 'POST', body }),
   revoke: (id: string) => apiFetch<void>(`/tokens/${id}`, { method: 'DELETE' }),
   grants: (id: string, grants: Array<{ secretId: string; wrappedKey: string }>) =>
-    apiFetch<AccessToken>(`/tokens/${id}/grants`, { method: 'PUT', body: { grants } }),
+    apiFetch<AccessToken>(`/tokens/${id}/grants`, {
+      method: 'PUT',
+      body: { grants },
+    }),
 };
 
 export const secretsApi = {
@@ -131,8 +204,14 @@ export const secretsApi = {
     folderId?: string | null;
     favorite?: boolean;
   }) => apiFetch<VaultItem>('/secrets', { method: 'POST', body }),
-  update: (id: string, body: { encryptedData: string; revision: number; expiresAt?: string | null }) =>
-    apiFetch<VaultItem>(`/secrets/${id}`, { method: 'PUT', body }),
+  update: (
+    id: string,
+    body: {
+      encryptedData: string;
+      revision: number;
+      expiresAt?: string | null;
+    },
+  ) => apiFetch<VaultItem>(`/secrets/${id}`, { method: 'PUT', body }),
   updateAccess: (id: string, body: { folderId?: string | null; favorite?: boolean; wrappedKey?: string }) =>
     apiFetch<VaultItem>(`/secrets/${id}/access`, { method: 'PATCH', body }),
   remove: (id: string) => apiFetch<void>(`/secrets/${id}`, { method: 'DELETE' }),
@@ -144,27 +223,46 @@ export const foldersApi = {
   create: (encryptedName: string) =>
     apiFetch<Folder>('/folders', { method: 'POST', body: { encryptedName } }),
   rename: (id: string, encryptedName: string) =>
-    apiFetch<Folder>(`/folders/${id}`, { method: 'PUT', body: { encryptedName } }),
+    apiFetch<Folder>(`/folders/${id}`, {
+      method: 'PUT',
+      body: { encryptedName },
+    }),
   remove: (id: string) => apiFetch<void>(`/folders/${id}`, { method: 'DELETE' }),
 };
 
 export const sharingApi = {
   lookup: (email: string) => apiFetch<UserLookup>(`/users/lookup?email=${encodeURIComponent(email)}`),
   list: (secretId: string) => apiFetch<Share[]>(`/secrets/${secretId}/shares`),
-  grant: (secretId: string, body: { userId: string; wrappedKey: string; permission: Permission }) =>
-    apiFetch<{ ok: true }>(`/secrets/${secretId}/shares`, { method: 'POST', body }),
+  grant: (
+    secretId: string,
+    body: {
+      userId: string;
+      wrappedKey: string;
+      permission: Permission;
+      organizationId?: string | null;
+    },
+  ) =>
+    apiFetch<{ ok: true }>(`/secrets/${secretId}/shares`, {
+      method: 'POST',
+      body,
+    }),
   update: (secretId: string, userId: string, permission: Permission) =>
     apiFetch<{ ok: true }>(`/secrets/${secretId}/shares/${userId}`, {
       method: 'PATCH',
       body: { permission },
     }),
   revoke: (secretId: string, userId: string) =>
-    apiFetch<void>(`/secrets/${secretId}/shares/${userId}`, { method: 'DELETE' }),
+    apiFetch<void>(`/secrets/${secretId}/shares/${userId}`, {
+      method: 'DELETE',
+    }),
 };
 
 export const externalSharesApi = {
   updateLimits: (id: string, body: { expiresAt: string; maxViews: number | null }) =>
-    apiFetch<ExternalShare>(`/external-shares/${id}/limits`, { method: 'PATCH', body }),
+    apiFetch<ExternalShare>(`/external-shares/${id}/limits`, {
+      method: 'PATCH',
+      body,
+    }),
   config: () => apiFetch<{ emailEnabled: boolean }>('/external-shares/config'),
   list: (secretId?: string) =>
     apiFetch<ExternalShare[]>(
@@ -189,9 +287,16 @@ export const externalSharesApi = {
       codeSalt?: string;
       codeVerifier?: string;
     },
-  ) => apiFetch<ExternalShare>(`/external-shares/${id}/reopen`, { method: 'POST', body }),
+  ) =>
+    apiFetch<ExternalShare>(`/external-shares/${id}/reopen`, {
+      method: 'POST',
+      body,
+    }),
   email: (id: string, link: string) =>
-    apiFetch<ExternalShare>(`/external-shares/${id}/email`, { method: 'POST', body: { link } }),
+    apiFetch<ExternalShare>(`/external-shares/${id}/email`, {
+      method: 'POST',
+      body: { link },
+    }),
   revoke: (id: string) => apiFetch<void>(`/external-shares/${id}`, { method: 'DELETE' }),
 };
 
@@ -199,10 +304,15 @@ export const externalSharesApi = {
 export const publicSharesApi = {
   info: (id: string) => apiFetch<PublicShareInfo>(`/public/shares/${id}`, { auth: false }),
   open: (id: string, codeVerifier?: string) =>
-    apiFetch<{ encryptedData: string; codeSalt: string | null; viewsLeft: number | null }>(
-      `/public/shares/${id}/open`,
-      { method: 'POST', body: codeVerifier ? { codeVerifier } : {}, auth: false },
-    ),
+    apiFetch<{
+      encryptedData: string;
+      codeSalt: string | null;
+      viewsLeft: number | null;
+    }>(`/public/shares/${id}/open`, {
+      method: 'POST',
+      body: codeVerifier ? { codeVerifier } : {},
+      auth: false,
+    }),
 };
 
 export const auditApi = {

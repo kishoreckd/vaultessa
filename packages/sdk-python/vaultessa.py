@@ -26,7 +26,9 @@ def _decrypt(key: bytes, value: str) -> bytes:
     if version != "v1":
         raise ValueError("Unsupported ciphertext")
     return AESGCM(key).decrypt(
-        base64.b64decode(iv, validate=True), base64.b64decode(ciphertext, validate=True), None
+        base64.b64decode(iv, validate=True),
+        base64.b64decode(ciphertext, validate=True),
+        None,
     )
 
 
@@ -34,10 +36,17 @@ class VaultessaClient:
     def __init__(self, url: str, token: str):
         origin = urlparse(url)
         if origin.scheme != "https" and not (
-            origin.scheme == "http" and origin.hostname in ("localhost", "127.0.0.1", "::1")
+            origin.scheme == "http"
+            and origin.hostname in ("localhost", "127.0.0.1", "::1")
         ):
             raise ValueError("Use HTTPS for Vaultessa")
-        if not origin.hostname or origin.username or origin.password or origin.query or origin.fragment:
+        if (
+            not origin.hostname
+            or origin.username
+            or origin.password
+            or origin.query
+            or origin.fragment
+        ):
             raise ValueError("Invalid Vaultessa URL")
         prefix, token_id, encoded = token.split(".")
         uuid.UUID(token_id)
@@ -51,11 +60,19 @@ class VaultessaClient:
 
     def list(self) -> list[dict]:
         request = Request(
-            f"{self._url}/api/machine/secrets", headers={"Authorization": f"Bearer {self._credential}"}
+            f"{self._url}/api/machine/secrets",
+            headers={"Authorization": f"Bearer {self._credential}"},
         )
         try:
             with build_opener(_NoRedirect()).open(request, timeout=15) as response:
-                rows = json.load(response)
+                envelope = json.load(response)
+                if (
+                    not isinstance(envelope, dict)
+                    or envelope.get("status") != "success"
+                    or not isinstance(envelope.get("data"), list)
+                ):
+                    raise RuntimeError("Invalid Vaultessa response")
+                rows = envelope["data"]
         except HTTPError as exc:
             raise RuntimeError(f"Vaultessa request failed ({exc.code})") from None
         return [
@@ -63,7 +80,11 @@ class VaultessaClient:
                 "id": row["id"],
                 "type": row["type"],
                 "revision": row["revision"],
-                "data": json.loads(_decrypt(_decrypt(self._key, row["wrappedKey"]), row["encryptedData"])),
+                "data": json.loads(
+                    _decrypt(
+                        _decrypt(self._key, row["wrappedKey"]), row["encryptedData"]
+                    )
+                ),
             }
             for row in rows
         ]

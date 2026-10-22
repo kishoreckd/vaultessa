@@ -32,6 +32,8 @@ def change_password(
     user.password_reset_hash = None
     user.password_reset_expires_at = None
     user.password_reset_attempts = 0
+    user.password_reset_code_hash = None
+    user.password_reset_code_expires_at = None
     revoke_other_sessions(db, user_id, current_session)
     db.flush()
     return user

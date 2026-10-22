@@ -54,6 +54,7 @@ def run_once(now: datetime | None = None) -> dict[str, int]:
                 current_stage,
                 get_settings().app_base_url.rstrip("/") + f"/?item={secret.id}",
             )
+            content.greeting = f"Hi {owner.name},"
             subject, text, html = render(content)
             result = send_email(owner.email, subject, text, html)
             if result.status == "accepted":

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { Loading } from '@/components/common/page';
 import { AppLayout } from '@/components/layout/app-layout';
 import { RequireUnlocked } from '@/components/layout/require-unlocked';
@@ -13,16 +13,25 @@ import { GuestSharePage } from '@/features/shares/GuestSharePage';
 import { SharedLinksPage } from '@/features/shares/SharedLinksPage';
 import { VaultPage } from '@/features/vault/VaultPage';
 import { setAccessToken, setUnauthorizedHandler } from '@/lib/api/client';
+import { authDestination } from '@/lib/auth-destination';
 import { useSession } from '@/stores/session';
 
+const TeamsPage = lazy(() => import('@/features/teams/TeamsPage').then((m) => ({ default: m.TeamsPage })));
+
 const SettingsPage = lazy(() =>
-  import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+  import('@/features/settings/SettingsPage').then((m) => ({
+    default: m.SettingsPage,
+  })),
 );
 const DeveloperPage = lazy(() =>
-  import('@/features/developer/DeveloperPage').then((m) => ({ default: m.DeveloperPage })),
+  import('@/features/developer/DeveloperPage').then((m) => ({
+    default: m.DeveloperPage,
+  })),
 );
 const GeneratorPage = lazy(() =>
-  import('@/features/generator/GeneratorPage').then((m) => ({ default: m.GeneratorPage })),
+  import('@/features/generator/GeneratorPage').then((m) => ({
+    default: m.GeneratorPage,
+  })),
 );
 const AuditPage = lazy(() => import('@/features/audit/AuditPage').then((m) => ({ default: m.AuditPage })));
 
@@ -62,15 +71,36 @@ function FullPageLoading() {
 
 function AuthenticatedRoutes() {
   const status = useSession((s) => s.status);
-  const home = status === 'unlocked' ? '/' : status === 'locked' ? '/unlock' : null;
+  const account = useSession((s) => s.account);
+  const location = useLocation();
+  const home =
+    account && !account.emailVerified
+      ? '/verify-email'
+      : status === 'unlocked'
+        ? authDestination(location.state)
+        : status === 'locked'
+          ? '/unlock'
+          : null;
 
   return (
     <Routes>
-      <Route path="/login" element={home ? <Navigate to={home} replace /> : <LoginPage />} />
-      <Route path="/register" element={home ? <Navigate to={home} replace /> : <RegisterPage />} />
+      <Route
+        path="/login"
+        element={home ? <Navigate to={home} state={location.state} replace /> : <LoginPage />}
+      />
+      <Route
+        path="/register"
+        element={home ? <Navigate to={home} state={location.state} replace /> : <RegisterPage />}
+      />
       <Route
         path="/unlock"
-        element={status === 'locked' ? <UnlockPage /> : <Navigate to={home ?? '/login'} replace />}
+        element={
+          status === 'locked' && account?.emailVerified ? (
+            <UnlockPage />
+          ) : (
+            <Navigate to={home ?? '/login'} state={location.state} replace />
+          )
+        }
       />
       <Route element={<RequireUnlocked />}>
         <Route element={<AppLayout />}>
@@ -80,6 +110,7 @@ function AuthenticatedRoutes() {
           <Route path="generator" element={<GeneratorPage />} />
           <Route path="activity" element={<AuditPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="teams" element={<TeamsPage />} />
           <Route path="developer" element={<DeveloperPage />} />
         </Route>
       </Route>

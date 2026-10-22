@@ -72,6 +72,7 @@ def to_vault_item(access: SecretAccess, shared_with: int | None = None) -> Vault
         created_at=secret.created_at,
         updated_at=secret.updated_at,
         expires_at=secret.expires_at,
+        organization_id=access.organization_id,
     )
 
 

@@ -32,7 +32,7 @@ docker compose up -d
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-Copy-Item .env.example .env          # then fill in the two secrets
+Copy-Item .env.example .env          # then fill in the three independent secrets
 .\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8010 --reload
 

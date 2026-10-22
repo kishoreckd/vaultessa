@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   generateAesKeyBytes,
+  generateKdfSalt,
   importAesKey,
   encryptJson,
   decryptJson,
@@ -25,9 +26,18 @@ it('recovers the same vault key and existing item with a new master password', a
   const encryptedItem = await encryptJson(vaultKey, { password: 'fixture-existing-secret' });
   const recoveryKey = generateVaultRecoveryKey();
   const wrapped = await wrapVaultForRecovery(raw, recoveryKey);
-  vi.spyOn(recoveryApi, 'inspect').mockResolvedValue({ wrappedVaultKey: wrapped.wrappedVaultKey });
+  const oldSalt = generateKdfSalt();
+  vi.spyOn(recoveryApi, 'inspect').mockResolvedValue({
+    wrappedVaultKey: wrapped.wrappedVaultKey,
+    kdfSalt: oldSalt,
+    kdfIterations: 600000,
+  });
   const reset = vi.spyOn(recoveryApi, 'reset').mockImplementation(async (body) => {
     expect(body.recoveryAuth).toBe(wrapped.recoveryAuth);
+    expect(body.currentKdfAuthHash).toBe(
+      await deriveAuthHash(await deriveMasterKey('new-master-password', oldSalt, 600000)),
+    );
+    expect(body.kdfSalt).not.toBe(oldSalt);
     expect(JSON.stringify(body)).not.toContain(recoveryKey);
     expect(JSON.stringify(body)).not.toContain('fixture-existing-secret');
     expect(JSON.stringify(body)).not.toContain('new-master-password');
@@ -49,7 +59,11 @@ it('recovers the same vault key and existing item with a new master password', a
 it('a wrong recovery key cannot unlock the vault or submit a reset', async () => {
   const raw = generateAesKeyBytes();
   const wrapped = await wrapVaultForRecovery(raw, generateVaultRecoveryKey());
-  vi.spyOn(recoveryApi, 'inspect').mockResolvedValue({ wrappedVaultKey: wrapped.wrappedVaultKey });
+  vi.spyOn(recoveryApi, 'inspect').mockResolvedValue({
+    wrappedVaultKey: wrapped.wrappedVaultKey,
+    kdfSalt: generateKdfSalt(),
+    kdfIterations: 600000,
+  });
   const reset = vi.spyOn(recoveryApi, 'reset');
   await expect(
     recoverVault('A'.repeat(43), generateVaultRecoveryKey(), 'new-master-password'),

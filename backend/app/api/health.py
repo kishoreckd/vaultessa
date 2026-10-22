@@ -1,9 +1,9 @@
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.deps import DbSession
+from app.utils.validation.json_validator import JsonResponse
 
 router = APIRouter(tags=["operations"])
 
@@ -13,5 +13,9 @@ def health(db: DbSession):
     try:
         db.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        return JSONResponse({"status": "degraded", "db": "unreachable"}, status_code=503)
+        return JsonResponse.error(
+            "Database unavailable",
+            {"code": "SERVICE_UNAVAILABLE", "status": "degraded", "db": "unreachable"},
+            status_code=503,
+        )
     return {"status": "ok", "db": "ok"}

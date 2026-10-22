@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { PasswordInput } from '@/components/common/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,6 +8,7 @@ import { useFormErrors } from '@/hooks/useFormErrors';
 import { CryptoError } from '@/lib/crypto';
 import { usePrefs } from '@/lib/prefs';
 import { useSession, type LockReason } from '@/stores/session';
+import { authDestination } from '@/lib/auth-destination';
 import { AuthCard } from './AuthCard';
 import { logout, unlock } from './authFlows';
 
@@ -24,6 +25,8 @@ function reasonText(reason: LockReason | null, minutes: number) {
 
 export function UnlockPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const destination = authDestination(location.state);
   const account = useSession((s) => s.account);
   const lockReason = useSession((s) => s.lockReason);
   const minutes = usePrefs((s) => s.autoLockMinutes);
@@ -39,7 +42,7 @@ export function UnlockPage() {
     setError(null);
     try {
       await unlock(password);
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(
         err instanceof CryptoError
@@ -98,7 +101,7 @@ export function UnlockPage() {
           className="h-auto p-0"
           onClick={async () => {
             await logout();
-            navigate('/login', { replace: true });
+            navigate('/login', { replace: true, state: { from: destination } });
           }}
         >
           Sign out

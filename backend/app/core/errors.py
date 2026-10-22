@@ -6,6 +6,8 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.utils.validation.json_validator import JsonResponse
+
 logger = logging.getLogger("vaultessa")
 
 CODE_FOR_STATUS = {
@@ -61,14 +63,18 @@ def error_response(exc: AppError, background: BackgroundTasks | None = None) -> 
 
     Raising an exception would skip them, so endpoints that must notify on failure return this instead.
     """
-    return JSONResponse(error_body(exc.code, exc.message), status_code=exc.status_code, background=background)
+    return JsonResponse.create(
+        **error_body(exc.code, exc.message), status_code=exc.status_code, background=background
+    )
 
 
 def error_body(code: str, message: str, details: list | None = None) -> dict:
     error: dict = {"code": code, "message": message}
     if details is not None:
         error["details"] = details
-    return {"error": error}
+    return JsonResponse.body(
+        "error", message, {key: value for key, value in error.items() if key != "message"}
+    )
 
 
 def _validation_details(errors: list) -> list[dict]:
@@ -82,25 +88,31 @@ def _validation_details(errors: list) -> list[dict]:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(error_body(exc.code, exc.message), status_code=exc.status_code)
+        return JsonResponse.create(**error_body(exc.code, exc.message), status_code=exc.status_code)
 
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation(_: Request, exc: RequestValidationError) -> JSONResponse:
         details = _validation_details(list(exc.errors()))
-        return JSONResponse(error_body("VALIDATION_ERROR", "Invalid request", details), status_code=400)
+        return JsonResponse.create(
+            **error_body("VALIDATION_ERROR", "Invalid request", details), status_code=400
+        )
 
     @app.exception_handler(ValidationError)
     async def handle_validation(_: Request, exc: ValidationError) -> JSONResponse:
         details = [{"path": ".".join(str(p) for p in e["loc"]), "message": e["msg"]} for e in exc.errors()]
-        return JSONResponse(error_body("VALIDATION_ERROR", "Invalid request", details), status_code=400)
+        return JsonResponse.create(
+            **error_body("VALIDATION_ERROR", "Invalid request", details), status_code=400
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = CODE_FOR_STATUS.get(exc.status_code, "INTERNAL")
         message = "Route not found" if exc.status_code in (404, 405) else str(exc.detail)
-        return JSONResponse(error_body(code, message), status_code=exc.status_code)
+        return JsonResponse.create(
+            **error_body(code, message), status_code=exc.status_code, headers=exc.headers
+        )
 
     @app.exception_handler(Exception)
     async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled error on %s %s", request.method, request.url.path)
-        return JSONResponse(error_body("INTERNAL", "Something went wrong"), status_code=500)
+        return JsonResponse.create(**error_body("INTERNAL", "Something went wrong"), status_code=500)

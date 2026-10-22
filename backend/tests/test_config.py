@@ -1,7 +1,6 @@
 import importlib.util
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -88,8 +87,9 @@ def test_every_preview_uses_configured_app_origin(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location("preview_emails", script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    config = SimpleNamespace(app_base_url="https://vault.company.example", account_lock_minutes=15)
+    config = settings(app_base_url="https://vault.company.example", account_lock_minutes=15)
     monkeypatch.setattr(module, "get_settings", lambda: config)
+    monkeypatch.setattr(module.templates, "get_settings", lambda: config)
     monkeypatch.setattr(notify, "get_settings", lambda: config)
     monkeypatch.setattr(notify, "email_enabled", lambda: False)
     monkeypatch.setattr(module, "__file__", str(tmp_path / "scripts/preview_emails.py"))
@@ -97,7 +97,7 @@ def test_every_preview_uses_configured_app_origin(tmp_path, monkeypatch):
     (tmp_path / "app").mkdir()
     module.main()
     pages = list((tmp_path / "app/email_previews").glob("*.html"))
-    assert len(pages) == 20
+    assert len(pages) == 43
     for page in pages:
         if page.name == "index.html":
             continue

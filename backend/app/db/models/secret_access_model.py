@@ -32,6 +32,9 @@ class SecretAccess(Base):
     wrapped_key: Mapped[str] = mapped_column(Text)
     key_wrap: Mapped[KeyWrap] = mapped_column(Enum(KeyWrap, name="key_wrap"))
     permission: Mapped[Permission] = mapped_column(Enum(Permission, name="permission"))
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     folder_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("folders.id", ondelete="SET NULL"), index=True
     )

@@ -55,6 +55,9 @@ class User(Base):
     email_verification_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     email_verification_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_verification_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verification_code_hash: Mapped[str | None] = mapped_column(String(64))
+    email_verification_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verification_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Independent client-derived proof and vault key encrypted under a recovery key held only by the user.
     recovery_auth_hash: Mapped[str | None] = mapped_column(Text)
     recovery_wrapped_vault_key: Mapped[str | None] = mapped_column(Text)
@@ -62,6 +65,8 @@ class User(Base):
     password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_reset_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_reset_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    password_reset_code_hash: Mapped[str | None] = mapped_column(String(64))
+    password_reset_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def mfa_required(self) -> bool:

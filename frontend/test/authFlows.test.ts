@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { authApi, accountApi } from '../src/lib/api/endpoints';
-import { login, changeMasterPassword } from '../src/features/auth/authFlows';
+import { login, unlock, changeMasterPassword } from '../src/features/auth/authFlows';
 import { useSession } from '../src/stores/session';
 import {
   deriveMasterKey,
@@ -19,6 +19,27 @@ afterEach(() => {
   useSession.getState().clear();
 });
 
+it('keeps unverified logins locked without loading vault keys', async () => {
+  const account = {
+    id: 'pending-verification',
+    emailVerified: false,
+    name: 'Pending',
+    email: 'pending@example.com',
+    kdf: 'PBKDF2_SHA256' as const,
+    kdfSalt: generateKdfSalt(),
+    kdfIterations: 1000,
+    publicKey: 'not-loaded',
+    protectedVaultKey: 'not-loaded',
+    protectedPrivateKey: 'not-loaded',
+  };
+  vi.spyOn(authApi, 'prelogin').mockResolvedValue(account);
+  vi.spyOn(authApi, 'login').mockResolvedValue({ account, accessToken: 'restricted-session' });
+  await login(account.email, 'fixture-password');
+  expect(useSession.getState().status).toBe('locked');
+  expect(useSession.getState().keys).toBeNull();
+  await expect(unlock('fixture-password')).rejects.toThrow('Verify your email');
+});
+
 it('keeps the vault locked until the MFA challenge succeeds', async () => {
   useSession.getState().clear();
   const kdfSalt = generateKdfSalt();
@@ -28,7 +49,7 @@ it('keeps the vault locked until the MFA challenge succeeds', async () => {
   const pair = await generateRsaKeyPair();
   const account = {
     id: 'fixture',
-    emailVerified: false,
+    emailVerified: true,
     name: 'Fixture',
     email: 'fixture@example.com',
     kdf: 'PBKDF2_SHA256' as const,
@@ -69,7 +90,7 @@ it('rewraps the same vault key when changing the master password', async () => {
   const pair = await generateRsaKeyPair();
   const account = {
     id: 'fixture',
-    emailVerified: false,
+    emailVerified: true,
     name: 'Fixture',
     email: 'fixture@example.com',
     kdf: 'PBKDF2_SHA256' as const,

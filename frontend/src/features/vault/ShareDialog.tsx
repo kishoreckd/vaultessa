@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { organizationsApi } from '@/lib/api/organizations';
 import { CircleAlert, Fingerprint, Info, Link2, LoaderCircle, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirmAction } from '@/components/common/confirm-dialog';
@@ -59,6 +61,11 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
   const shares = useShares(item.id);
   const { grant, update, revoke } = useShareMutations(item);
   const [email, setEmail] = useState('');
+  const [organizationId, setOrganizationId] = useState(item.organizationId ?? 'personal');
+  const teams = useQuery({
+    queryKey: ['teams', 'list'],
+    queryFn: organizationsApi.list,
+  });
   const [permission, setPermission] = useState<Permission>('VIEW');
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -75,7 +82,10 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
     const wanted = email.trim().toLowerCase();
     try {
       const user = await sharingApi.lookup(wanted);
-      setCandidate({ user, fingerprint: await publicKeyFingerprint(user.publicKey) });
+      setCandidate({
+        user,
+        fingerprint: await publicKeyFingerprint(user.publicKey),
+      });
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setNoAccount(wanted);
       else setLookupError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
@@ -86,8 +96,15 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
 
   async function onConfirm() {
     if (!candidate) return;
-    await grant.mutateAsync({ userId: candidate.user.id, publicKey: candidate.user.publicKey, permission });
-    toast.success(`Shared with ${candidate.user.name}`, { description: `${PERMISSION_LABELS[permission]} access` });
+    await grant.mutateAsync({
+      userId: candidate.user.id,
+      publicKey: candidate.user.publicKey,
+      permission,
+      organizationId: organizationId === 'personal' ? null : organizationId,
+    });
+    toast.success(`Shared with ${candidate.user.name}`, {
+      description: `${PERMISSION_LABELS[permission]} access`,
+    });
     setCandidate(null);
     setEmail('');
   }
@@ -105,7 +122,9 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
   }
 
   const outside =
-    candidate && emailDomain(candidate.user.email) !== emailDomain(account?.email) ? emailDomain(candidate.user.email) : null;
+    candidate && emailDomain(candidate.user.email) !== emailDomain(account?.email)
+      ? emailDomain(candidate.user.email)
+      : null;
 
   return (
     <div className="grid gap-6">
@@ -118,12 +137,15 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
             {shares.data?.map((share) => (
               <li key={share.userId} className="flex items-center gap-3 p-3 text-sm">
                 <Avatar className="size-8">
-                  <AvatarFallback className="text-xs font-semibold uppercase">{share.name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="text-xs font-semibold uppercase">
+                    {share.name.charAt(0)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid min-w-0 flex-1">
                   <span className="truncate font-medium">{share.name}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {share.email}
+                    {share.organizationId && ' | Team share'}
                     {!share.accepted && ' · not opened yet'}
                   </span>
                 </div>
@@ -134,8 +156,13 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
                     <Select
                       value={share.permission}
                       onValueChange={async (value) => {
-                        await update.mutateAsync({ userId: share.userId, permission: value as Permission });
-                        toast.success(`${share.name} now has ${PERMISSION_LABELS[value as Permission]} access`);
+                        await update.mutateAsync({
+                          userId: share.userId,
+                          permission: value as Permission,
+                        });
+                        toast.success(
+                          `${share.name} now has ${PERMISSION_LABELS[value as Permission]} access`,
+                        );
                       }}
                     >
                       <SelectTrigger size="sm" aria-label={`Access for ${share.name}`} className="w-28">
@@ -149,7 +176,11 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
                         ))}
                       </SelectContent>
                     </Select>
-                    <IconAction label={`Remove ${share.name}`} className="text-destructive" onClick={() => onRemove(share.userId, share.name)}>
+                    <IconAction
+                      label={`Remove ${share.name}`}
+                      className="text-destructive"
+                      onClick={() => onRemove(share.userId, share.name)}
+                    >
                       <Trash2 />
                     </IconAction>
                   </>
@@ -164,6 +195,27 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
 
       <section className="grid gap-4">
         <h3 className="text-sm font-medium">Add people</h3>
+        {!!teams.data?.length && (
+          <div className="grid gap-2">
+            <Select value={organizationId} onValueChange={setOrganizationId} disabled={!!item.organizationId}>
+              <SelectTrigger aria-label="Sharing scope">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="personal">Personal share</SelectItem>
+                {teams.data.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Team shares require both people to be active members. The grant is removed if either person
+              leaves the team.
+            </p>
+          </div>
+        )}
         {lookupError && (
           <Alert variant="destructive">
             <CircleAlert />
@@ -175,7 +227,9 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
             <Info />
             <AlertTitle>{noAccount} doesn’t have a Vaultessa account</AlertTitle>
             <AlertDescription>
-              <span>Send them a secure share link instead. They can open it in their browser without signing up.</span>
+              <span>
+                Send them a secure share link instead. They can open it in their browser without signing up.
+              </span>
               {onUseLink && (
                 <Button size="sm" className="mt-2" onClick={() => onUseLink(noAccount)}>
                   <Link2 /> Create a share link for them
@@ -201,7 +255,11 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
             />
             <div className="grid gap-2">
               <Label>What can they do?</Label>
-              <RadioGroup value={permission} onValueChange={(v) => setPermission(v as Permission)} className="grid gap-2 sm:grid-cols-2">
+              <RadioGroup
+                value={permission}
+                onValueChange={(v) => setPermission(v as Permission)}
+                className="grid gap-2 sm:grid-cols-2"
+              >
                 {PERMISSIONS.map((p) => (
                   <Label
                     key={p}
@@ -226,13 +284,13 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
         ) : (
           <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 text-sm">
             <p>
-              Share <strong>{item.data.name}</strong> with <strong>{candidate.user.name}</strong> ({candidate.user.email}) with{' '}
-              <strong>{PERMISSION_LABELS[permission]}</strong> access?
+              Share <strong>{item.data.name}</strong> with <strong>{candidate.user.name}</strong> (
+              {candidate.user.email}) with <strong>{PERMISSION_LABELS[permission]}</strong> access?
             </p>
             {outside && (
               <Alert className="border-warning/40 bg-warning/10">
                 <CircleAlert className="text-warning" />
-                <AlertTitle>Outside your organisation</AlertTitle>
+                <AlertTitle>Different email domain</AlertTitle>
                 <AlertDescription>
                   {candidate.user.email} uses {outside}, not {emailDomain(account?.email)}.
                 </AlertDescription>
@@ -241,8 +299,9 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <Fingerprint className="mt-0.5 size-4 shrink-0" />
               <span>
-                Encrypted for their key <code className="font-mono text-foreground">{candidate.fingerprint}</code>. For very
-                sensitive items, check it matches the fingerprint in their Settings.
+                Encrypted for their key{' '}
+                <code className="font-mono text-foreground">{candidate.fingerprint}</code>. For very sensitive
+                items, check it matches the fingerprint in their Settings.
               </span>
             </div>
             {permission === 'LOGIN_ONLY' && (

@@ -9,13 +9,13 @@ production mail; Mailpit captures development mail. No credentials belong in Git
 ## Preview without sending
 
 From `backend`, run `.venv\Scripts\python.exe scripts/preview_emails.py`.
-Open `backend/app/email_previews/index.html`. The 19 samples use fictional
+Open `backend/app/email_previews/index.html`. The 21 samples use fictional
 recipients and links and render the actual invitation, new-device, verification, welcome and vault-recovery templates.
 Logos and contextual illustrations load from local backend assets. No frontend server is required.
 Use `--text` only when separate plain-text preview files are useful; production messages always retain the text fallback.
 See [email design](14-email-design.md) for the required purpose-specific illustration mapping.
 
-All 19 previews use `APP_BASE_URL` from `backend/.env`, just like sent notifications.
+All 21 email examples use `APP_BASE_URL` from `backend/.env`, just like sent notifications.
 Generated HTML contains the resolved URL at generation time; it does not read `.env` when opened.
 After changing the domain, restart the backend and regenerate previews. A development `.env`
 will deliberately produce development links. Production requires an HTTPS, non-local origin.

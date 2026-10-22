@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/common/form-field';
+import { EmailCodeField } from '@/components/common/email-code-field';
 import { PasswordInput } from '@/components/common/password-input';
-import { recoveryApi } from '@/lib/api/endpoints';
+import { authApi, recoveryApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
+import { authDestination } from '@/lib/auth-destination';
 import { emailError } from '@/lib/validation';
 import { useSession } from '@/stores/session';
-import { AuthCard } from './AuthCard';
-import { recoverVault } from './authFlows';
 import { useFormErrors } from '@/hooks/useFormErrors';
+import { AuthCard } from './AuthCard';
+import { AuthIllustration } from './AuthIllustration';
+import { useEmailCooldown } from './useEmailCooldown';
+import { logout, recoverVault } from './authFlows';
 
 function useEmailToken() {
   const location = useLocation();
@@ -17,164 +23,294 @@ function useEmailToken() {
   useEffect(() => {
     if (location.hash) {
       setToken(new URLSearchParams(location.hash.slice(1)).get('token') ?? '');
-      navigate(location.pathname, { replace: true });
+      navigate(location.pathname, { replace: true, state: location.state });
     }
-  }, [location.hash, location.pathname, navigate]);
+  }, [location.hash, location.pathname, location.state, navigate]);
   return token;
 }
 
-export function EmailVerificationPage() {
-  const token = useEmailToken();
+/** Shared email -> code interaction; recovery only reveals the password form after verification. */
+function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
+  const legacyToken = useEmailToken();
+  const location = useLocation();
+  const navigate = useNavigate();
   const account = useSession((s) => s.account);
-  const [email, setEmail] = useState(account?.email ?? '');
+  const { formRef, errors, validate, clear } = useFormErrors<'email' | 'code'>();
+  const [email, setEmail] = useState(recovery ? '' : (account?.email ?? ''));
+  const [code, setCode] = useState('');
+  const [policy, setPolicy] = useState<{ resendAfterSeconds: number; codeTtlMinutes: number } | null>(null);
+  const [policyError, setPolicyError] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
+  const [sent, setSent] = useState(!recovery);
   const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<void>) => {
+  const [done, setDone] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const { remaining, start } = useEmailCooldown(
+    recovery ? 'recovery' : 'verification',
+    !recovery && account ? account.email : email,
+  );
+  useEffect(() => {
+    let active = true;
+    void recoveryApi
+      .policy()
+      .then((value) => {
+        if (active) setPolicy(value);
+      })
+      .catch(() => {
+        if (active) setPolicyError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (recovery || !account) return;
+    let active = true;
+    setEmail(account.email);
+    void recoveryApi
+      .verificationStatus()
+      .then((status) => {
+        if (active && status.resendAfterSeconds > 0) start(status.resendAfterSeconds);
+      })
+      .catch(() => {
+        /* Resend endpoint still enforces the server timer. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [account?.id, account?.email, recovery, start]);
+  const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setError('');
     try {
-      await fn();
+      await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not verify email.');
+      const detail = err instanceof Error ? err.message : 'Please try again.';
+      setError(detail);
+      toast.error('Could not complete verification', { description: detail });
     } finally {
       setBusy(false);
     }
   };
+  const finishVerification = async () => {
+    setDone(true);
+    toast.success('Email verified');
+    if (useSession.getState().account) {
+      const fresh = await authApi.me();
+      useSession.setState((state) => (state.account?.id === fresh.id ? { account: fresh } : {}));
+      if (fresh.emailVerified) navigate(authDestination(location.state), { replace: true });
+    }
+  };
+  const sendCode = () => {
+    if (busy || remaining || !policy || !validate({ email: emailError(email) })) return;
+    void run(async () => {
+      const result = await (recovery
+        ? recoveryApi.requestReset(email.trim())
+        : recoveryApi.requestVerification(email.trim()));
+      start(result.resendAfterSeconds);
+      setSent(true);
+      setCode('');
+      setMessage(result.message);
+      toast.success('Request received', { description: result.message });
+    });
+  };
+  if (resetToken) return <RecoveryForm token={resetToken} />;
   return (
-    <AuthCard title="Verify your email" subtitle="Confirm the address for your Vaultessa account.">
-      <div className="grid gap-4">
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" className="text-sm">
-            {message}
-          </p>
-        )}
-        {token && !done && (
-          <Button
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                const result = await recoveryApi.verify(token);
-                setMessage(result.message);
-                setDone(true);
-              })
-            }
-          >
-            {busy ? 'Verifying…' : 'Verify my email'}
+    <AuthCard
+      illustration={<AuthIllustration recovery={recovery} />}
+      title={done ? 'Email verified' : recovery ? 'Recover your vault' : 'Check your inbox'}
+      subtitle={
+        recovery
+          ? 'Verify your email, then choose a new master password.'
+          : 'One small step to secure your account.'
+      }
+    >
+      <div className="grid gap-5">
+        {done ? (
+          <Button asChild>
+            <Link to="/login">Continue to sign in</Link>
           </Button>
+        ) : (
+          <>
+            <p className="text-center text-sm leading-relaxed text-muted-foreground">
+              {recovery ? (
+                'Use the email address for your account. Your saved vault recovery key is also required to restore your encrypted items.'
+              ) : (
+                <>
+                  Enter the six-digit code sent to{' '}
+                  {account ? (
+                    <strong className="break-all font-medium text-foreground">{account.email}</strong>
+                  ) : (
+                    'your email address'
+                  )}
+                  .
+                </>
+              )}
+            </p>
+            {error && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
+              >
+                {error}
+              </p>
+            )}
+            {message && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {message}
+              </p>
+            )}
+            <form
+              ref={formRef}
+              noValidate
+              className="grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!sent) {
+                  sendCode();
+                  return;
+                }
+                if (
+                  busy ||
+                  !validate({
+                    email: emailError(email),
+                    code: /^\d{6}$/.test(code) ? null : 'Enter the six-digit code from your email.',
+                  })
+                )
+                  return;
+                void run(async () => {
+                  if (recovery) {
+                    setResetToken((await recoveryApi.verifyResetCode(email.trim(), code)).token);
+                    toast.success('Email confirmed', {
+                      description: 'You can now set a new master password.',
+                    });
+                  } else {
+                    await recoveryApi.verifyCode(email.trim(), code);
+                    await finishVerification();
+                  }
+                });
+              }}
+            >
+              {(!account || recovery) && (
+                <TextField
+                  label="Email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  error={errors.email}
+                  readOnly={sent && recovery}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    clear('email');
+                    setError('');
+                  }}
+                />
+              )}
+              {sent && (
+                <EmailCodeField
+                  value={code}
+                  error={errors.code}
+                  remaining={remaining}
+                  disabled={busy}
+                  resendDisabled={busy || !policy || remaining > 0}
+                  onResend={sendCode}
+                  hint={
+                    policy
+                      ? `Code expires after ${policy.codeTtlMinutes} minutes. Check spam if it hasn't arrived.`
+                      : 'Check your inbox and spam folder.'
+                  }
+                  onChange={(value) => {
+                    setCode(value);
+                    clear('code');
+                    setError('');
+                  }}
+                />
+              )}
+              <Button disabled={busy || (!sent && (!policy || remaining > 0))} type="submit">
+                {busy
+                  ? 'Please wait…'
+                  : sent
+                    ? recovery
+                      ? 'Verify code and continue'
+                      : 'Verify email'
+                    : remaining
+                      ? `Send code in ${remaining}s`
+                      : recovery
+                        ? 'Send recovery code'
+                        : 'Send verification code'}
+              </Button>
+            </form>
+            {policyError && (
+              <p role="alert" className="text-sm text-destructive">
+                Could not load email settings. Reload this page to try again.
+              </p>
+            )}
+            {legacyToken && !recovery && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await recoveryApi.verify(legacyToken);
+                    await finishVerification();
+                  })
+                }
+              >
+                Verify using my email link
+              </Button>
+            )}
+            {recovery && sent && (
+              <Button
+                variant="link"
+                disabled={busy}
+                onClick={() => {
+                  setSent(false);
+                  setCode('');
+                  setMessage('');
+                }}
+              >
+                Use a different email
+              </Button>
+            )}
+            {account && !recovery ? (
+              <Button
+                variant="link"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await logout();
+                    navigate('/login', { replace: true });
+                  })
+                }
+              >
+                Use a different account
+              </Button>
+            ) : (
+              <Link className="text-center text-sm text-primary underline underline-offset-4" to="/login">
+                Back to sign in
+              </Link>
+            )}
+          </>
         )}
-        {!done && (
-          <form
-            noValidate
-            className="grid gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const issue = emailError(email);
-              if (issue) {
-                setError(issue);
-                return;
-              }
-              void run(async () => {
-                setMessage((await recoveryApi.requestVerification(email.trim())).message);
-              });
-            }}
-          >
-            <TextField
-              label="Email"
-              required
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Button variant="outline" disabled={busy} type="submit">
-              Send a new verification link
-            </Button>
-          </form>
-        )}
-        <Link className="text-sm text-primary underline" to={account ? '/settings' : '/login'}>
-          {account ? 'Go to Settings' : 'Back to sign in'}
-        </Link>
       </div>
     </AuthCard>
   );
 }
 
+export function EmailVerificationPage() {
+  return <EmailCodePage />;
+}
 export function ForgotPasswordPage() {
-  const { formRef, errors, validate, clear } = useFormErrors<'email'>();
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
-  return (
-    <AuthCard
-      title="Forgot your master password?"
-      subtitle="Recover with your verified email and saved vault recovery key."
-    >
-      <form
-        ref={formRef}
-        noValidate
-        className="grid gap-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!validate({ email: emailError(email) })) return;
-          setBusy(true);
-          setError('');
-          try {
-            setMessage((await recoveryApi.requestReset(email.trim())).message);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not request recovery.');
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <p className="text-sm text-muted-foreground">
-          You must have enabled vault recovery and saved a key starting with vrk. before forgetting your
-          password. Without it, Vaultessa cannot restore access to your existing vault.
-        </p>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" className="text-sm">
-            {message}
-          </p>
-        )}
-        <TextField
-          label="Email"
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          error={errors.email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            clear('email');
-          }}
-        />
-        <Button disabled={busy} type="submit">
-          {busy ? 'Requesting…' : 'Email recovery link'}
-        </Button>
-        <Link className="text-sm text-primary underline" to="/login">
-          Back to sign in
-        </Link>
-      </form>
-    </AuthCard>
-  );
+  return <EmailCodePage recovery />;
+}
+export function RecoverVaultPage() {
+  return <RecoveryForm token={useEmailToken()} />;
 }
 
-export function RecoverVaultPage() {
+function RecoveryForm({ token }: { token: string }) {
   const { formRef, errors, validate, clear } = useFormErrors<'key' | 'password' | 'confirm'>();
-  const token = useEmailToken();
   const [key, setKey] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -183,6 +319,7 @@ export function RecoverVaultPage() {
   const [error, setError] = useState('');
   return (
     <AuthCard
+      illustration={<AuthIllustration recovery />}
       title={done ? 'Master password reset' : 'Recover your vault'}
       subtitle={
         done
@@ -232,7 +369,13 @@ export function RecoverVaultPage() {
               setPassword('');
               setConfirm('');
               setDone(true);
+              toast.success('Master password reset', { description: 'Sign in with your new password.' });
             } catch (err) {
+              if (err instanceof ApiError && err.code === 'PASSWORD_REUSED')
+                validate({ password: err.message });
+              toast.error('Could not reset your password', {
+                description: err instanceof Error ? err.message : 'Please try again.',
+              });
               setError(
                 err instanceof Error && err.message === 'Decryption failed'
                   ? 'This recovery key could not unlock the vault. Check the key you saved.'

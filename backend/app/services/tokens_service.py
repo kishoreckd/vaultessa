@@ -14,6 +14,7 @@ from app.db.models.api_token_grant_model import ApiTokenGrant
 from app.db.models.api_token_model import ApiToken
 from app.db.models.secret_access_model import SecretAccess
 from app.db.models.secret_model import Secret
+from app.db.models.user_model import User
 from app.schemas.tokens import CreateTokenRequest, MachineSecret, TokenGrantIn, TokenOut, TokenStatus
 from app.services.secrets_service import require_access
 
@@ -125,6 +126,9 @@ def authenticate_machine(db: Session, credential: str) -> ApiToken:
         or status_of(token) != "active"
     ):
         raise AppError.unauthorized("Invalid or expired access token")
+    owner = db.get(User, token.user_id)
+    if not owner or not owner.email_verified:
+        raise AppError(403, "EMAIL_NOT_VERIFIED", "Verify your email address before using access tokens")
     return token
 
 

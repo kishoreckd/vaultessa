@@ -1,16 +1,16 @@
-from .helpers import b64, register
+from .helpers import b64, register, response_data
 
 
 def test_register_then_login_and_me(api):
     alice = register(api, "alice")
     me = api.get("/api/auth/me", headers=alice.headers)
     assert me.status_code == 200
-    assert me.json()["email"] == "alice@example.com"
-    assert "authHash" not in me.json()
+    assert response_data(me)["email"] == "alice@example.com"
+    assert "authHash" not in response_data(me)
 
     login = api.post("/api/auth/login", json={"email": "ALICE@example.com ", "authHash": alice.auth_hash})
     assert login.status_code == 200
-    assert login.json()["account"]["kdfIterations"] == 600_000
+    assert response_data(login)["account"]["kdfIterations"] == 600_000
     assert "pv_refresh" in login.cookies
 
 
@@ -36,17 +36,17 @@ def test_wrong_password_is_rejected_and_audited(api):
     alice = register(api, "alice")
     response = api.post("/api/auth/login", json={"email": alice.email, "authHash": b64("wrong")})
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "Invalid email or master password"
+    assert response_data(response)["error"]["message"] == "Invalid email or master password"
     unknown = api.post("/api/auth/login", json={"email": "ghost@example.com", "authHash": b64("x")})
-    assert unknown.json() == response.json()  # same answer whether or not the account exists
+    assert response_data(unknown) == response_data(response)  # same answer whether or not the account exists
 
 
 def test_prelogin_does_not_reveal_unknown_emails(api):
     register(api, "alice")
-    real = api.post("/api/auth/prelogin", json={"email": "alice@example.com"}).json()
-    fake = api.post("/api/auth/prelogin", json={"email": "ghost@example.com"}).json()
+    real = response_data(api.post("/api/auth/prelogin", json={"email": "alice@example.com"}))
+    fake = response_data(api.post("/api/auth/prelogin", json={"email": "ghost@example.com"}))
     assert set(real) == set(fake) == {"kdf", "kdfIterations", "kdfSalt"}
-    assert api.post("/api/auth/prelogin", json={"email": "ghost@example.com"}).json() == fake
+    assert response_data(api.post("/api/auth/prelogin", json={"email": "ghost@example.com"})) == fake
 
 
 def test_refresh_rotates_and_logout_revokes(api):
@@ -55,7 +55,7 @@ def test_refresh_rotates_and_logout_revokes(api):
 
     refreshed = api.post("/api/auth/refresh")
     assert refreshed.status_code == 200
-    new_token = refreshed.json()["accessToken"]
+    new_token = response_data(refreshed)["accessToken"]
 
     reused = api.post("/api/auth/refresh", headers={"Cookie": f"pv_refresh={old_cookie}"})
     assert reused.status_code == 401  # rotated token is dead
@@ -89,7 +89,9 @@ def test_change_password_preserves_items_and_revokes_other_sessions(api):
 
     alice = register(api, "alice")
     item = create_secret(api, alice)
-    other = api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash}).json()
+    other = response_data(
+        api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash})
+    )
     other_headers = {"Authorization": f"Bearer {other['accessToken']}"}
     body = {
         "authHash": alice.auth_hash,
@@ -107,8 +109,11 @@ def test_change_password_preserves_items_and_revokes_other_sessions(api):
     )
     changed = api.post("/api/account/password", json=body, headers=alice.headers)
     assert changed.status_code == 200, changed.text
-    assert changed.json()["protectedVaultKey"] == ENC_2
-    assert api.get("/api/secrets", headers=alice.headers).json()[0]["encryptedData"] == item["encryptedData"]
+    assert response_data(changed)["protectedVaultKey"] == ENC_2
+    assert (
+        response_data(api.get("/api/secrets", headers=alice.headers))[0]["encryptedData"]
+        == item["encryptedData"]
+    )
     assert api.get("/api/secrets", headers=other_headers).status_code == 401
     assert (
         api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash}).status_code

@@ -44,19 +44,37 @@ export function useFolders() {
   });
 }
 
-type SaveInput = { existing?: DecryptedItem; type: SecretType; data: SecretPayload; folderId: string | null; expiresAt?: string | null };
+type SaveInput = {
+  existing?: DecryptedItem;
+  type: SecretType;
+  data: SecretPayload;
+  folderId: string | null;
+  expiresAt?: string | null;
+};
 
 export function useSaveSecret() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ existing, type, data, folderId, expiresAt }: SaveInput) => {
       if (!existing) {
-        return secretsApi.create({ type, folderId, expiresAt, ...(await encryptNewSecret(data)) });
+        return secretsApi.create({
+          type,
+          folderId,
+          expiresAt,
+          ...(await encryptNewSecret(data)),
+        });
       }
       let item = existing as DecryptedItem | Awaited<ReturnType<typeof secretsApi.update>>;
-      if (JSON.stringify(existing.data) !== JSON.stringify(data) || (expiresAt !== undefined && expiresAt !== (existing.expiresAt ?? null))) {
+      if (
+        JSON.stringify(existing.data) !== JSON.stringify(data) ||
+        (expiresAt !== undefined && expiresAt !== (existing.expiresAt ?? null))
+      ) {
         const encryptedData = await encryptExisting(existing, data);
-        item = await secretsApi.update(existing.id, { encryptedData, revision: existing.revision, expiresAt });
+        item = await secretsApi.update(existing.id, {
+          encryptedData,
+          revision: existing.revision,
+          expiresAt,
+        });
       }
       if (folderId !== existing.folderId) item = await secretsApi.updateAccess(existing.id, { folderId });
       return item;
@@ -85,7 +103,8 @@ export function useDeleteSecret() {
 export function useLeaveShare() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ secretId, userId }: { secretId: string; userId: string }) => sharingApi.revoke(secretId, userId),
+    mutationFn: ({ secretId, userId }: { secretId: string; userId: string }) =>
+      sharingApi.revoke(secretId, userId),
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
   });
 }
@@ -145,7 +164,10 @@ export function useHistory(item: DecryptedItem, enabled: boolean) {
 }
 
 export function useShares(itemId: string) {
-  return useQuery({ queryKey: vaultKeys.shares(itemId), queryFn: () => sharingApi.list(itemId) });
+  return useQuery({
+    queryKey: vaultKeys.shares(itemId),
+    queryFn: () => sharingApi.list(itemId),
+  });
 }
 
 export function useShareMutations(item: DecryptedItem) {
@@ -159,9 +181,15 @@ export function useShareMutations(item: DecryptedItem) {
 
   return {
     grant: useMutation({
-      mutationFn: async (input: { userId: string; publicKey: string; permission: Permission }) =>
+      mutationFn: async (input: {
+        userId: string;
+        publicKey: string;
+        permission: Permission;
+        organizationId?: string | null;
+      }) =>
         sharingApi.grant(item.id, {
           userId: input.userId,
+          organizationId: input.organizationId,
           permission: input.permission,
           wrappedKey: await wrapForRecipient(item, input.publicKey),
         }),

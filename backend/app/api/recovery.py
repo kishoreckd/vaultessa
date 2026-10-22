@@ -1,12 +1,18 @@
+import math
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from sqlalchemy import select
 
-from app.core.deps import Auth, DbSession
+from app.constants.http import REFRESH_COOKIE_PATH
+from app.core.config import get_settings
+from app.core.deps import Auth, DbSession, SessionAuth
 from app.core.errors import AppError
 from app.core.rate_limit import auth_limit
 from app.db.models.user_model import User
 from app.schemas.account import ReauthRequest
 from app.schemas.recovery import (
+    EmailCodeRequest,
     EmailRequest,
     EnableRecoveryRequest,
     RecoveryInfo,
@@ -28,14 +34,62 @@ ACCEPTED = {
 }
 
 
+@public_router.get("/email/policy")
+def email_policy():
+    settings = get_settings()
+    return {
+        "resendAfterSeconds": settings.email_resend_cooldown_seconds,
+        "codeTtlMinutes": settings.email_code_ttl_minutes,
+    }
+
+
+@public_router.get("/email/status")
+def verification_status(auth: SessionAuth, db: DbSession):
+    user = get_user(db, auth.user_id)
+    remaining = 0
+    if user.email_verification_sent_at:
+        until = user.email_verification_sent_at + timedelta(
+            seconds=get_settings().email_resend_cooldown_seconds
+        )
+        remaining = max(0, math.ceil((until - datetime.now(UTC)).total_seconds()))
+    return {"resendAfterSeconds": remaining}
+
+
+@public_router.post("/email/verify-code")
+def verify_email_code(body: EmailCodeRequest, request: Request, background: BackgroundTasks, db: DbSession):
+    user = service.verify_code(db, body.email, body.code)
+    if user is None:
+        db.commit()
+        raise AppError.bad_request(
+            "This code is incorrect, expired, or already used. Request a new code if needed."
+        )
+    record(db, request, AuditAction.EMAIL_VERIFIED, user_id=user.id)
+    db.commit()
+    notify.welcome(background, user)
+    return {"message": "Email verified. You can now open your vault."}
+
+
+@public_router.post("/recovery/verify-code")
+def verify_recovery_code(body: EmailCodeRequest, db: DbSession):
+    token = service.exchange_recovery_code(db, body.email, body.code)
+    if token is None:
+        db.commit()
+        raise AppError.bad_request(
+            "This code is incorrect, expired, or already used. Request a new code if needed."
+        )
+    # Exchange the emailed proof for a fresh capability; neither the code nor the old link can be replayed.
+    db.commit()
+    return {"token": token}
+
+
 @public_router.post("/email/request", status_code=202)
 def request_verification(body: EmailRequest, background: BackgroundTasks, db: DbSession):
     user = db.scalar(select(User).where(User.email == body.email).with_for_update())
     token = service.issue_verification(user) if user else None
     db.commit()
     if token:
-        notify.verify_email(background, user, token)
-    return ACCEPTED
+        notify.verify_email(background, user, token.token, token.code)
+    return {**ACCEPTED, "resendAfterSeconds": get_settings().email_resend_cooldown_seconds}
 
 
 @public_router.post("/email/verify")
@@ -44,7 +98,7 @@ def verify_email(body: TokenRequest, request: Request, background: BackgroundTas
     record(db, request, AuditAction.EMAIL_VERIFIED, user_id=user.id)
     db.commit()
     notify.welcome(background, user)
-    return {"message": "Email verified. You can now enable vault recovery in Settings."}
+    return {"message": "Email verified. You can now sign in and open your vault."}
 
 
 @public_router.post("/recovery/request", status_code=202)
@@ -53,14 +107,18 @@ def request_recovery(body: EmailRequest, background: BackgroundTasks, db: DbSess
     token = service.issue_reset(user) if user else None
     db.commit()
     if token:
-        notify.forgot_password(background, user, token)
-    return ACCEPTED
+        notify.forgot_password(background, user, token.token, token.code)
+    return {**ACCEPTED, "resendAfterSeconds": get_settings().email_resend_cooldown_seconds}
 
 
 @public_router.post("/recovery/inspect", response_model=RecoveryInfo)
 def inspect_recovery(body: TokenRequest, db: DbSession):
     user = service.reset_user(db, body.token)
-    return RecoveryInfo(wrapped_vault_key=user.recovery_wrapped_vault_key)
+    return RecoveryInfo(
+        wrapped_vault_key=user.recovery_wrapped_vault_key,
+        kdf_salt=user.kdf_salt,
+        kdf_iterations=user.kdf_iterations,
+    )
 
 
 @public_router.post("/recovery/reset")
@@ -78,7 +136,7 @@ def reset_password(
     record(db, request, AuditAction.PASSWORD_RECOVERED, user_id=user.id)
     db.commit()
     notify.recovered(background, user)
-    response.delete_cookie("pv_refresh", path="/api/auth")
+    response.delete_cookie(get_settings().refresh_cookie_name, path=REFRESH_COOKIE_PATH)
     return {
         "message": "Master password reset. Sign in with your new password, then create a new recovery key."
     }

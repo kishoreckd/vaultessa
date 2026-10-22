@@ -37,7 +37,9 @@ Each phase ends with: green tests, a security review of the diff (`/security-rev
 - [ ] E2E tests (Playwright)
 
 ## Phase 2 — Teams & organisations (≈ 6–8 weeks)
-- [ ] Organisation, invitations, roles (Super Admin / Admin / User)
+- [x] Organisation, email-bound invitations and roles (Owner / Admin / Member)
+- [x] Optional DNS-verified domain joining and team-scoped item grants
+- [x] Membership deactivation and organisation ownership transfer (personal asset transfer remains pending)
 - [ ] User groups; share to group (fan-out wrap, re-wrap on join)
 - [ ] Shared folders with folder keys
 - [ ] Key rotation on revoke (new secretKey, re-encrypt payload + history)

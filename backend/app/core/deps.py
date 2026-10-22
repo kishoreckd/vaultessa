@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.security import decode_access_token
 from app.db.models.session_model import UserSession
+from app.db.models.user_model import User
 from app.db.session import get_db
 
 _bearer = HTTPBearer(auto_error=False)
@@ -22,7 +23,7 @@ class AuthContext:
     session_id: uuid.UUID
 
 
-def get_auth(
+def get_session_auth(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> AuthContext:
@@ -40,5 +41,13 @@ def get_auth(
     return AuthContext(user_id=user_id, session_id=session_id)
 
 
+def get_auth(auth: AuthContext = Depends(get_session_auth), db: Session = Depends(get_db)) -> AuthContext:
+    user = db.get(User, auth.user_id)
+    if not user or not user.email_verified:
+        raise AppError(403, "EMAIL_NOT_VERIFIED", "Verify your email address before opening your vault")
+    return auth
+
+
 DbSession = Annotated[Session, Depends(get_db)]
 Auth = Annotated[AuthContext, Depends(get_auth)]
+SessionAuth = Annotated[AuthContext, Depends(get_session_auth)]

@@ -4,6 +4,7 @@ The server can't read item names (they're encrypted), so emails refer to "an ite
 to the app, where the name is shown after the vault is unlocked.
 """
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -42,16 +43,18 @@ def _app_url(path: str) -> str:
 def _queue(background: BackgroundTasks, user: User, category: Category, content: EmailContent) -> None:
     if not email_enabled() or not _enabled(user, category):
         return
+    if not any(p.startswith(("Hi ", "Welcome,")) for p in content.paragraphs):
+        content = replace(content, greeting=f"Hi {user.name},")
     subject, text, html = render(content)
     background.add_task(send_email, user.email, subject, text, html)
 
 
-def verify_email(background: BackgroundTasks, user: User, token: str) -> None:
+def verify_email(background: BackgroundTasks, user: User, token: str, code: str = "") -> None:
     _queue(
         background,
         user,
         Category.SECURITY,
-        email_templates.verification_email(user.name, _app_url("/verify-email#token=" + token)),
+        email_templates.verification_email(user.name, _app_url("/verify-email#token=" + token), code),
     )
 
 
@@ -59,12 +62,12 @@ def welcome(background: BackgroundTasks, user: User) -> None:
     _queue(background, user, Category.SECURITY, email_templates.welcome_email(user.name, _app_url("/")))
 
 
-def forgot_password(background: BackgroundTasks, user: User, token: str) -> None:
+def forgot_password(background: BackgroundTasks, user: User, token: str, code: str = "") -> None:
     _queue(
         background,
         user,
         Category.SECURITY,
-        email_templates.forgot_password_email(user.name, _app_url("/recover#token=" + token)),
+        email_templates.forgot_password_email(user.name, _app_url("/recover#token=" + token), code),
     )
 
 
@@ -105,7 +108,7 @@ def master_password_changed(background: BackgroundTasks, user: User) -> None:
                 "Your vault items remain encrypted.",
                 "If you didn't make this change, review your account security immediately.",
             ],
-            button=("Review account security", _app_url("/settings")),
+            button=("Review account security", _app_url("/settings#account-security")),
             tone="alert",
         ),
     )
@@ -131,7 +134,7 @@ def new_sign_in(background: BackgroundTasks, user: User, ip: str | None, user_ag
                 ("IP address", ip or "unknown"),
                 ("Time", datetime.now(UTC).strftime("%d %b %Y, %H:%M UTC")),
             ],
-            button=("Review devices", _app_url("/settings")),
+            button=("Review devices", _app_url("/settings#account-security")),
             tone="alert",
         ),
     )
@@ -171,7 +174,7 @@ def two_step_changed(background: BackgroundTasks, user: User, method: str, enabl
                 if enabled
                 else "If you didn't do this, change your master password and turn it back on.",
             ],
-            button=("Security settings", _app_url("/settings")),
+            button=("Security settings", _app_url("/settings#account-security")),
             tone="info" if enabled else "alert",
         ),
     )
@@ -212,7 +215,7 @@ def item_shared(background: BackgroundTasks, recipient: User, sharer: User, perm
                 f"You now have {permission.replace('_', ' ').lower()} access. Find it under “Shared with me”."
             ],
             details=[("Shared by", f"{sharer.name} ({sharer.email})")],
-            button=("Open your vault", _app_url("/")),
+            button=("View shared items", _app_url("/?view=shared")),
         ),
     )
 
@@ -239,7 +242,7 @@ def access_changed(background: BackgroundTasks, recipient: User, actor: User, pe
             subject=subject,
             heading=heading,
             paragraphs=[body],
-            button=("Open your vault", _app_url("/")),
+            button=("View shared items", _app_url("/?view=shared")),
         ),
     )
 
@@ -247,7 +250,13 @@ def access_changed(background: BackgroundTasks, recipient: User, actor: User, pe
 # ── Share links ────────────────────────────────────────────────────────────────
 
 
-def link_opened(background: BackgroundTasks, owner: User, recipient: str | None, one_time: bool) -> None:
+def link_opened(
+    background: BackgroundTasks,
+    owner: User,
+    recipient: str | None,
+    one_time: bool,
+    link_id: str | None = None,
+) -> None:
     _queue(
         background,
         owner,
@@ -257,15 +266,21 @@ def link_opened(background: BackgroundTasks, owner: User, recipient: str | None,
             subject="Your share link was opened",
             heading="Your share link was opened",
             paragraphs=[
-                f"The link you shared with {recipient or 'someone'} was just opened."
+                "Your share link was just opened."
                 + (" It was a one-time link, so it's now deleted." if one_time else "")
             ],
-            button=("View your links", _app_url("/links")),
+            details=[("Intended recipient", recipient)] if recipient else [],
+            button=(
+                "Review shared link",
+                _app_url("/links" + ("?link=" + link_id if link_id else "?include=inactive")),
+            ),
         ),
     )
 
 
-def link_locked(background: BackgroundTasks, owner: User, recipient: str | None) -> None:
+def link_locked(
+    background: BackgroundTasks, owner: User, recipient: str | None, link_id: str | None = None
+) -> None:
     _queue(
         background,
         owner,
@@ -275,11 +290,14 @@ def link_locked(background: BackgroundTasks, owner: User, recipient: str | None)
             subject="A share link was locked",
             heading="Share link locked after wrong access codes",
             paragraphs=[
-                f"Someone tried the link you shared with {recipient or 'someone'} "
-                "with wrong access codes too many times. "
-                "It's now disabled. You can re-open it from your links page."
+                "We disabled your share link after too many incorrect access-code attempts.",
+                "Review the link before reopening it. We cannot identify who entered the codes.",
             ],
-            button=("View your links", _app_url("/links")),
+            details=[("Intended recipient", recipient)] if recipient else [],
+            button=(
+                "Review shared link",
+                _app_url("/links" + ("?link=" + link_id if link_id else "?include=inactive")),
+            ),
             tone="alert",
         ),
     )

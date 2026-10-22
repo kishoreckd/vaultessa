@@ -5,10 +5,22 @@ Live OpenAPI docs (non-production): `/api/docs`, schema at `/api/openapi.json`.
 Request bodies reject unknown fields.
 All 🔒 fields are EncStrings / wrapped keys produced by the client.
 
-**Error shape** (every non-2xx):
+**Response envelope** (all JSON endpoints, including machine access):
 ```json
-{ "error": { "code": "VALIDATION_ERROR", "message": "Human readable", "details": [] } }
+{ "status": "success", "message": "Success", "data": {} }
 ```
+The response types in the tables below describe `data`. A message-only response
+has `data: null`; message plus additional fields places those fields in `data`.
+HTTP 201/202 codes, cookies, headers and background tasks are preserved. HTTP 204
+has no body. OpenAPI/Swagger documents keep their standard format.
+
+**Error shape** (non-2xx JSON):
+```json
+{ "status": "error", "message": "Human readable", "data": { "code": "VALIDATION_ERROR", "details": [] } }
+```
+Validation errors never echo submitted values. `data.code` remains machine readable
+so UI actions, toasts and SDK callers can distinguish errors.
+
 Codes: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404,
 `CONFLICT` 409, `RATE_LIMITED` 429, `INTERNAL` 500.
 
@@ -142,5 +154,37 @@ every read, and excludes LOGIN_ONLY grants. See `packages/README.md`.
 
 ## Welcome, verification and vault recovery
 
-Implemented endpoints, requests, expiry/replay semantics and the new `Account.emailVerified`
+Email-code verification and recovery include a 45-second server-enforced resend cooldown,
+single-use six-digit codes, and a current-password reuse check during reset.
+Implemented endpoints, requests, expiry/replay semantics and the `Account.emailVerified`
 field are documented in [13-email-verification-and-recovery.md](13-email-verification-and-recovery.md).
+
+## Organisations and teams
+
+All routes below require a session. Team creation and invitation/domain joining require a verified email.
+
+| Method | Path (under `/api`) | Access |
+| --- | --- | --- |
+| GET / POST | `/organizations` | List memberships / create as owner |
+| GET | `/organizations/invitations` | Own verified-email invitations |
+| POST | `/organizations/invitations/{id}/accept` | Exact invited verified email |
+| GET | `/organizations/discover` | Discover opt-in teams for verified email domain |
+| POST | `/organizations/{id}/join` | Matching verified domain, active claim, opt-in policy |
+| PATCH | `/organizations/{id}` | Owner: name/domain-join policy |
+| GET | `/organizations/{id}/members` | Active member directory |
+| PATCH | `/organizations/{id}/members/{userId}` | Owner: admin/member role |
+| DELETE | `/organizations/{id}/members/{userId}` | Deactivate member or leave, with role checks |
+| POST | `/organizations/{id}/transfer` | Owner plus authHash reauthentication |
+| GET / POST | `/organizations/{id}/invitations` | Owner/admin; admin invitations owner-only |
+| DELETE | `/organizations/{id}/invitations/{invitationId}` | Revoke with role checks |
+| GET / POST | `/organizations/{id}/domains` | Owner: DNS challenges |
+| POST | `/organizations/{id}/domains/{domainId}/verify` | Owner: verify TXT |
+| DELETE | `/organizations/{id}/domains/{domainId}` | Owner: remove domain and disable domain joining |
+
+Share creation accepts optional `organizationId`. Both sender and recipient must be active members;
+delegated team access stays in that team. Share and vault DTOs expose nullable `organizationId`.
+See [teams](17-organisations-and-teams.md) for semantics and limitations.
+
+## Verified-email access gate
+
+Registration/login responses can return an account with `emailVerified=false` and a restricted session. Such sessions can fetch `/auth/me`, refresh or sign out, but protected APIs reject them with `403 EMAIL_NOT_VERIFIED` until the email token is confirmed. The frontend routes these accounts to `/verify-email` and keeps vault keys locked. This check also covers existing machine tokens. See [verification and recovery](13-email-verification-and-recovery.md).

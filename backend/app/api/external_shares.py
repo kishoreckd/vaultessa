@@ -209,7 +209,7 @@ def open_share(
             )
         db.commit()
         if left == 0:
-            notify.link_locked(background, share.owner, share.recipient_email)
+            notify.link_locked(background, share.owner, share.recipient_email, link_id=str(share.id))
             return error_response(
                 AppError(410, "GONE", "Too many wrong codes. This link has been disabled."), background
             )
@@ -225,7 +225,9 @@ def open_share(
         details={"linkId": str(share.id), "viewedAt": datetime.now(UTC).isoformat()},
     )
     db.commit()
-    notify.link_opened(background, share.owner, share.recipient_email, one_time=share.max_views == 1)
+    notify.link_opened(
+        background, share.owner, share.recipient_email, one_time=share.max_views == 1, link_id=str(share.id)
+    )
     return OpenShareResponse(
         encrypted_data=ciphertext,
         code_salt=share.code_salt,

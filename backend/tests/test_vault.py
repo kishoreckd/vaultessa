@@ -1,4 +1,4 @@
-from .helpers import ENC, ENC_2, RSA_WRAPPED, create_secret, register, share
+from .helpers import ENC, ENC_2, RSA_WRAPPED, create_secret, register, response_data, share
 
 
 def test_create_list_update_with_history(api):
@@ -10,18 +10,18 @@ def test_create_list_update_with_history(api):
     updated = api.put(
         f"/api/secrets/{item['id']}", json={"encryptedData": ENC_2, "revision": 0}, headers=alice.headers
     )
-    assert updated.status_code == 200 and updated.json()["revision"] == 1
+    assert updated.status_code == 200 and response_data(updated)["revision"] == 1
 
     stale = api.put(
         f"/api/secrets/{item['id']}", json={"encryptedData": ENC, "revision": 0}, headers=alice.headers
     )
     assert stale.status_code == 409
 
-    history = api.get(f"/api/secrets/{item['id']}/history", headers=alice.headers).json()
+    history = response_data(api.get(f"/api/secrets/{item['id']}/history", headers=alice.headers))
     assert [h["encryptedData"] for h in history] == [ENC]
     assert history[0]["changedBy"]["email"] == "alice@example.com"
 
-    vault = api.get("/api/secrets", headers=alice.headers).json()
+    vault = response_data(api.get("/api/secrets", headers=alice.headers))
     assert [v["encryptedData"] for v in vault] == [ENC_2]
 
 
@@ -46,12 +46,12 @@ def test_other_users_get_404_not_403(api):
     ]:
         response = api.request(method, url, json=body, headers=mallory.headers)
         assert response.status_code == 404, (method, url)
-    assert api.get("/api/secrets", headers=mallory.headers).json() == []
+    assert response_data(api.get("/api/secrets", headers=mallory.headers)) == []
 
 
 def test_folders_are_private_and_deleting_keeps_secrets(api):
     alice, mallory = register(api, "alice"), register(api, "mallory")
-    folder = api.post("/api/folders", json={"encryptedName": ENC}, headers=alice.headers).json()
+    folder = response_data(api.post("/api/folders", json={"encryptedName": ENC}, headers=alice.headers))
     item = create_secret(api, alice, folderId=folder["id"])
     assert item["folderId"] == folder["id"]
 
@@ -62,24 +62,24 @@ def test_folders_are_private_and_deleting_keeps_secrets(api):
         headers=mallory.headers,
     )
     assert other.status_code == 404
-    assert api.get("/api/folders", headers=mallory.headers).json() == []
+    assert response_data(api.get("/api/folders", headers=mallory.headers)) == []
 
     assert api.delete(f"/api/folders/{folder['id']}", headers=alice.headers).status_code == 204
-    vault = api.get("/api/secrets", headers=alice.headers).json()
+    vault = response_data(api.get("/api/secrets", headers=alice.headers))
     assert vault[0]["id"] == item["id"] and vault[0]["folderId"] is None
 
 
 def test_access_patch_only_changes_given_fields(api):
     alice = register(api, "alice")
-    folder = api.post("/api/folders", json={"encryptedName": ENC}, headers=alice.headers).json()
+    folder = response_data(api.post("/api/folders", json={"encryptedName": ENC}, headers=alice.headers))
     item = create_secret(api, alice, folderId=folder["id"])
-    fav = api.patch(
-        f"/api/secrets/{item['id']}/access", json={"favorite": True}, headers=alice.headers
-    ).json()
+    fav = response_data(
+        api.patch(f"/api/secrets/{item['id']}/access", json={"favorite": True}, headers=alice.headers)
+    )
     assert fav["favorite"] is True and fav["folderId"] == folder["id"]
-    moved = api.patch(
-        f"/api/secrets/{item['id']}/access", json={"folderId": None}, headers=alice.headers
-    ).json()
+    moved = response_data(
+        api.patch(f"/api/secrets/{item['id']}/access", json={"folderId": None}, headers=alice.headers)
+    )
     assert moved["folderId"] is None and moved["favorite"] is True
 
 
@@ -88,11 +88,11 @@ def test_sharing_permissions_accept_and_revoke(api):
     item = create_secret(api, alice)
 
     lookup = api.get("/api/users/lookup", params={"email": "BOB@example.com"}, headers=alice.headers)
-    assert lookup.status_code == 200 and lookup.json()["id"] == bob.id
+    assert lookup.status_code == 200 and response_data(lookup)["id"] == bob.id
     assert share(api, alice, item["id"], bob, "VIEW").status_code == 201
     assert share(api, alice, item["id"], bob, "VIEW").status_code == 409
 
-    received = api.get("/api/secrets", headers=bob.headers).json()[0]
+    received = response_data(api.get("/api/secrets", headers=bob.headers))[0]
     assert received["owner"] == {"id": alice.id, "name": "Alice", "email": "alice@example.com"}
     assert received["keyWrap"] == "RSA" and received["wrappedKey"] == RSA_WRAPPED and not received["isOwner"]
 
@@ -106,7 +106,7 @@ def test_sharing_permissions_accept_and_revoke(api):
     assert api.get(f"/api/secrets/{item['id']}/shares", headers=bob.headers).status_code == 403
 
     accepted = api.patch(f"/api/secrets/{item['id']}/access", json={"wrappedKey": ENC_2}, headers=bob.headers)
-    assert accepted.status_code == 200 and accepted.json()["keyWrap"] == "VAULT"
+    assert accepted.status_code == 200 and response_data(accepted)["keyWrap"] == "VAULT"
     again = api.patch(f"/api/secrets/{item['id']}/access", json={"wrappedKey": ENC_2}, headers=bob.headers)
     assert again.status_code == 400
 
@@ -120,7 +120,7 @@ def test_sharing_permissions_accept_and_revoke(api):
     )
     assert edit.status_code == 200
 
-    shares = api.get(f"/api/secrets/{item['id']}/shares", headers=alice.headers).json()
+    shares = response_data(api.get(f"/api/secrets/{item['id']}/shares", headers=alice.headers))
     assert {(s["email"], s["isOwner"], s["accepted"]) for s in shares} == {
         ("alice@example.com", True, True),
         ("bob@example.com", False, True),
@@ -130,7 +130,7 @@ def test_sharing_permissions_accept_and_revoke(api):
     owner_removal = api.delete(f"/api/secrets/{item['id']}/shares/{alice.id}", headers=alice.headers)
     assert owner_removal.status_code == 403
     assert api.delete(f"/api/secrets/{item['id']}/shares/{bob.id}", headers=alice.headers).status_code == 204
-    assert api.get("/api/secrets", headers=bob.headers).json() == []
+    assert response_data(api.get("/api/secrets", headers=bob.headers)) == []
 
 
 def test_recipient_can_leave_a_share(api):
@@ -138,7 +138,7 @@ def test_recipient_can_leave_a_share(api):
     item = create_secret(api, alice)
     share(api, alice, item["id"], bob, "LOGIN_ONLY")
     assert api.delete(f"/api/secrets/{item['id']}/shares/{bob.id}", headers=bob.headers).status_code == 204
-    assert api.get("/api/secrets", headers=alice.headers).json()[0]["id"] == item["id"]
+    assert response_data(api.get("/api/secrets", headers=alice.headers))[0]["id"] == item["id"]
 
 
 def test_owner_delete_removes_for_everyone(api):
@@ -148,33 +148,33 @@ def test_owner_delete_removes_for_everyone(api):
     # a MANAGE recipient still can't delete — only the owner can
     assert api.delete(f"/api/secrets/{item['id']}", headers=bob.headers).status_code == 403
     assert api.delete(f"/api/secrets/{item['id']}", headers=alice.headers).status_code == 204
-    assert api.get("/api/secrets", headers=bob.headers).json() == []
+    assert response_data(api.get("/api/secrets", headers=bob.headers)) == []
 
 
 def test_audit_log_pagination(api):
     alice = register(api, "alice")
     for _ in range(3):
         create_secret(api, alice)
-    first = api.get("/api/audit", params={"limit": 2}, headers=alice.headers).json()
+    first = response_data(api.get("/api/audit", params={"limit": 2}, headers=alice.headers))
     assert len(first["items"]) == 2 and first["nextCursor"]
-    second = api.get(
-        "/api/audit", params={"limit": 2, "cursor": first["nextCursor"]}, headers=alice.headers
-    ).json()
+    second = response_data(
+        api.get("/api/audit", params={"limit": 2, "cursor": first["nextCursor"]}, headers=alice.headers)
+    )
     actions = [e["action"] for e in first["items"] + second["items"]]
     assert actions == ["SECRET_CREATE", "SECRET_CREATE", "SECRET_CREATE", "USER_REGISTER"]
     assert second["nextCursor"] is None
 
 
 def test_health(api):
-    assert api.get("/api/health").json() == {"status": "ok", "db": "ok"}
+    assert response_data(api.get("/api/health")) == {"status": "ok", "db": "ok"}
 
 
 def test_shared_with_count_changes_with_grants(api):
     alice, bob, carol = register(api, "alice"), register(api, "bob"), register(api, "carol")
     item = create_secret(api, alice)
-    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 0
+    assert response_data(api.get("/api/secrets", headers=alice.headers))[0]["sharedWith"] == 0
     share(api, alice, item["id"], bob, "VIEW")
     share(api, alice, item["id"], carol, "MANAGE")
-    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 2
+    assert response_data(api.get("/api/secrets", headers=alice.headers))[0]["sharedWith"] == 2
     api.delete(f"/api/secrets/{item['id']}/shares/{bob.id}", headers=alice.headers)
-    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 1
+    assert response_data(api.get("/api/secrets", headers=alice.headers))[0]["sharedWith"] == 1

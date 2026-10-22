@@ -1,0 +1,25 @@
+{% macro rules(scope='') %}
+{{ scope }}.v-bg { background-color: {{ dark.background }} !important; }
+{{ scope }}.v-card { background-color: {{ dark.card }} !important; }
+{{ scope }}.v-soft { background-color: {{ dark.lavender }} !important; }
+{{ scope }}.v-ink { color: {{ dark.ink }} !important; }
+{{ scope }}.v-muted { color: {{ dark.muted }} !important; }
+{{ scope }}.v-accent { color: {{ dark.accent }} !important; }
+{{ scope }}.v-border { border-color: {{ dark.border }} !important; }
+{{ scope }}.v-button { background-color: {{ theme.primary }} !important; color: {{ theme.button_text }} !important; }
+/* Raster art keeps its original palette on a deliberately light illustration panel. */
+{{ scope }}.v-art { background-color: {{ theme.lavender }} !important; }
+{{ scope }}.v-image { filter: none !important; }
+{% endmacro %}
+{% if force %}
+:root { color-scheme: dark; }
+{{ rules() }}
+{% else %}
+:root { color-scheme: light dark; supported-color-schemes: light dark; }
+@media (prefers-color-scheme: dark) {
+{{ rules() }}
+}
+/* Outlook clients that expose their dark-mode attribute. */
+{{ rules('[data-ogsc] ') }}
+{{ rules('[data-ogsb] ') }}
+{% endif %}
