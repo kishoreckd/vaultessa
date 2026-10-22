@@ -136,13 +136,14 @@ def test_verification_expired_code_and_attempt_limit(api, mail, expired):
             db.commit()
     else:
         wrong = "000000" if code != "000000" else "111111"
-        for _ in range(get_settings().email_code_max_attempts):
-            assert (
-                api.post("/api/auth/email/verify-code", json={"email": user.email, "code": wrong}).status_code
-                == 400
-            )
-    assert (
-        api.post("/api/auth/email/verify-code", json={"email": user.email, "code": code}).status_code == 400
+        limit = get_settings().email_code_max_attempts
+        for attempt in range(1, limit + 1):
+            # The last allowed wrong code starts the lockout (429).
+            assert api.post(
+                "/api/auth/email/verify-code", json={"email": user.email, "code": wrong}
+            ).status_code == (429 if attempt == limit else 400)
+    assert api.post("/api/auth/email/verify-code", json={"email": user.email, "code": code}).status_code == (
+        400 if expired else 429
     )
     assert response_data(api.get("/api/auth/me", headers=user.headers))["emailVerified"] is False
 
@@ -215,18 +216,16 @@ def test_recovery_code_expiry_and_attempt_limit(api, mail, expired):
             db.commit()
     else:
         wrong = "000000" if code != "000000" else "111111"
-        for _ in range(get_settings().email_code_max_attempts):
-            assert (
-                api.post(
-                    "/api/auth/recovery/verify-code", json={"email": user.email, "code": wrong}
-                ).status_code
-                == 400
-            )
+        limit = get_settings().email_code_max_attempts
+        for attempt in range(1, limit + 1):
+            # The last allowed wrong code starts the lockout (429).
+            assert api.post(
+                "/api/auth/recovery/verify-code", json={"email": user.email, "code": wrong}
+            ).status_code == (429 if attempt == limit else 400)
         assert api.post("/api/auth/recovery/inspect", json={"token": token}).status_code == 400
-    assert (
-        api.post("/api/auth/recovery/verify-code", json={"email": user.email, "code": code}).status_code
-        == 400
-    )
+    assert api.post(
+        "/api/auth/recovery/verify-code", json={"email": user.email, "code": code}
+    ).status_code == (400 if expired else 429)
 
 
 def test_password_change_invalidates_pending_recovery_code(api, mail):

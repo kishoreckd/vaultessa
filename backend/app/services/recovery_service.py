@@ -25,6 +25,25 @@ class EmailChallenge:
     code: str
 
 
+@dataclass(frozen=True)
+class CodeCheck:
+    """Result of checking an emailed code: the user on success, or how long codes stay blocked."""
+
+    user: User | None
+    locked_for: timedelta | None = None
+
+
+def _prefix(recovery: bool) -> str:
+    return "password_reset" if recovery else "email_verification"
+
+
+def lock_remaining(user: User, *, recovery: bool = False) -> timedelta | None:
+    """Time left on the block that follows too many wrong codes, or None if not blocked."""
+    until = getattr(user, _prefix(recovery) + "_locked_until")
+    now = datetime.now(UTC)
+    return until - now if until and until > now else None
+
+
 def code_hash(user: User, purpose: str, code: str) -> str:
     # A keyed digest protects low-entropy codes if the database alone is exposed.
     return hmac.new(
@@ -44,7 +63,7 @@ def clear_verification(user: User) -> None:
 
 def issue_verification(user: User) -> EmailChallenge | None:
     now = datetime.now(UTC)
-    if user.email_verified or not notify.email_enabled():
+    if user.email_verified or not notify.email_enabled() or lock_remaining(user):
         return None
     if user.email_verification_sent_at and now - user.email_verification_sent_at < timedelta(
         seconds=get_settings().email_resend_cooldown_seconds
@@ -107,7 +126,7 @@ def issue_reset(user: User) -> EmailChallenge | None:
         and user.recovery_auth_hash
         and user.recovery_wrapped_vault_key
         and notify.email_enabled()
-    ):
+    ) or lock_remaining(user, recovery=True):
         return None
     if user.password_reset_sent_at and now - user.password_reset_sent_at < timedelta(
         seconds=get_settings().email_resend_cooldown_seconds
@@ -124,12 +143,18 @@ def issue_reset(user: User) -> EmailChallenge | None:
     return EmailChallenge(token, code)
 
 
-def verify_code(db: Session, email: str, code: str, *, recovery: bool = False) -> User | None:
-    """Caller commits failed attempts, including lockout, before reporting a generic error."""
+def verify_code(db: Session, email: str, code: str, *, recovery: bool = False) -> CodeCheck:
+    """Caller commits failed attempts, including lockout, before reporting the error.
+
+    After `email_code_max_attempts` wrong codes the code is wiped and both entering and requesting
+    codes are blocked for `email_code_lockout_minutes`.
+    """
     user = db.scalar(select(User).where(User.email == email).with_for_update())
     if user is None:
-        return None
-    prefix = "password_reset" if recovery else "email_verification"
+        return CodeCheck(None)
+    if locked := lock_remaining(user, recovery=recovery):
+        return CodeCheck(None, locked)
+    prefix = _prefix(recovery)
     digest = getattr(user, prefix + "_code_hash")
     expires = getattr(user, prefix + "_code_expires_at")
     attempts = getattr(user, prefix + "_attempts")
@@ -145,7 +170,7 @@ def verify_code(db: Session, email: str, code: str, *, recovery: bool = False) -
         or expires <= datetime.now(UTC)
         or attempts >= get_settings().email_code_max_attempts
     ):
-        return None
+        return CodeCheck(None)
     if not hmac.compare_digest(digest, code_hash(user, "recovery" if recovery else "verification", code)):
         setattr(user, prefix + "_attempts", attempts + 1)
         if attempts + 1 >= get_settings().email_code_max_attempts:
@@ -153,8 +178,12 @@ def verify_code(db: Session, email: str, code: str, *, recovery: bool = False) -
                 clear_reset(user)
             else:
                 clear_verification(user)
+            lockout = timedelta(minutes=get_settings().email_code_lockout_minutes)
+            setattr(user, prefix + "_locked_until", datetime.now(UTC) + lockout)
+            db.flush()
+            return CodeCheck(None, lockout)
         db.flush()
-        return None
+        return CodeCheck(None)
     if recovery:
         user.password_reset_code_hash = None
         user.password_reset_code_expires_at = None
@@ -163,7 +192,7 @@ def verify_code(db: Session, email: str, code: str, *, recovery: bool = False) -
         user.email_verified = True
         clear_verification(user)
     db.flush()
-    return user
+    return CodeCheck(user)
 
 
 def reset_user(db: Session, token: str) -> User:
@@ -180,16 +209,18 @@ def reset_user(db: Session, token: str) -> User:
     return user
 
 
-def exchange_recovery_code(db: Session, email: str, code: str) -> str | None:
-    user = verify_code(db, email, code, recovery=True)
-    if user is None:
-        return None
+def exchange_recovery_code(db: Session, email: str, code: str) -> tuple[str | None, timedelta | None]:
+    """Returns (single-use reset token, None) on success, or (None, block time left if blocked)."""
+    check = verify_code(db, email, code, recovery=True)
+    if check.user is None:
+        return None, check.locked_for
+    user = check.user
     token = random_token()
     user.password_reset_hash = sha256_hex(token)
     user.password_reset_expires_at = datetime.now(UTC) + timedelta(
         minutes=get_settings().password_reset_ttl_minutes
     )
-    return token
+    return token, None
 
 
 def complete_reset(db: Session, body: ResetPasswordRequest) -> tuple[User, bool]:

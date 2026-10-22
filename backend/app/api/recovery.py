@@ -55,11 +55,26 @@ def verification_status(auth: SessionAuth, db: DbSession):
     return {"resendAfterSeconds": remaining}
 
 
+def _codes_blocked(remaining: timedelta) -> AppError:
+    minutes = max(1, math.ceil(remaining.total_seconds() / 60))
+    wait = f"{minutes // 60} h {minutes % 60} min" if minutes >= 60 else f"{minutes} min"
+    total = get_settings().email_code_lockout_minutes
+    period = f"{total // 60} hours" if total % 60 == 0 and total >= 120 else f"{total} minutes"
+    return AppError(
+        429,
+        "CODES_BLOCKED",
+        f"Too many incorrect codes. For your security, codes are blocked for {period}. Try again in {wait}.",
+    )
+
+
 @public_router.post("/email/verify-code")
 def verify_email_code(body: EmailCodeRequest, request: Request, background: BackgroundTasks, db: DbSession):
-    user = service.verify_code(db, body.email, body.code)
+    check = service.verify_code(db, body.email, body.code)
+    user = check.user
     if user is None:
-        db.commit()
+        db.commit()  # persist the attempt count / block before reporting it
+        if check.locked_for:
+            raise _codes_blocked(check.locked_for)
         raise AppError.bad_request(
             "This code is incorrect, expired, or already used. Request a new code if needed."
         )
@@ -71,9 +86,11 @@ def verify_email_code(body: EmailCodeRequest, request: Request, background: Back
 
 @public_router.post("/recovery/verify-code")
 def verify_recovery_code(body: EmailCodeRequest, db: DbSession):
-    token = service.exchange_recovery_code(db, body.email, body.code)
+    token, locked_for = service.exchange_recovery_code(db, body.email, body.code)
     if token is None:
         db.commit()
+        if locked_for:
+            raise _codes_blocked(locked_for)
         raise AppError.bad_request(
             "This code is incorrect, expired, or already used. Request a new code if needed."
         )
@@ -85,6 +102,8 @@ def verify_recovery_code(body: EmailCodeRequest, db: DbSession):
 @public_router.post("/email/request", status_code=202)
 def request_verification(body: EmailRequest, background: BackgroundTasks, db: DbSession):
     user = db.scalar(select(User).where(User.email == body.email).with_for_update())
+    if user and (locked := service.lock_remaining(user)):
+        raise _codes_blocked(locked)
     token = service.issue_verification(user) if user else None
     db.commit()
     if token:
@@ -104,6 +123,8 @@ def verify_email(body: TokenRequest, request: Request, background: BackgroundTas
 @public_router.post("/recovery/request", status_code=202)
 def request_recovery(body: EmailRequest, background: BackgroundTasks, db: DbSession):
     user = db.scalar(select(User).where(User.email == body.email).with_for_update())
+    if user and (locked := service.lock_remaining(user, recovery=True)):
+        raise _codes_blocked(locked)
     token = service.issue_reset(user) if user else None
     db.commit()
     if token:

@@ -40,6 +40,7 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
   const [code, setCode] = useState('');
   const [policy, setPolicy] = useState<{ resendAfterSeconds: number; codeTtlMinutes: number } | null>(null);
   const [policyError, setPolicyError] = useState(false);
+  const [policyAttempt, setPolicyAttempt] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [sent, setSent] = useState(!recovery);
@@ -52,18 +53,28 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
   );
   useEffect(() => {
     let active = true;
-    void recoveryApi
-      .policy()
-      .then((value) => {
-        if (active) setPolicy(value);
-      })
-      .catch(() => {
-        if (active) setPolicyError(true);
-      });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // The backend is the only source of the resend/expiry policy. Retry briefly (e.g. while the
+    // server restarts); sending stays disabled until it answers.
+    setPolicyError(false);
+    const load = (attempt: number) => {
+      void recoveryApi
+        .policy()
+        .then((value) => {
+          if (active) setPolicy(value);
+        })
+        .catch(() => {
+          if (!active) return;
+          if (attempt < 3) timer = setTimeout(() => load(attempt + 1), 1500 * (attempt + 1));
+          else setPolicyError(true);
+        });
+    };
+    load(0);
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [policyAttempt]);
   useEffect(() => {
     if (recovery || !account) return;
     let active = true;
@@ -243,9 +254,12 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
               </Button>
             </form>
             {policyError && (
-              <p role="alert" className="text-sm text-destructive">
-                Could not load email settings. Reload this page to try again.
-              </p>
+              <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+                <span>Couldn’t reach the server to load the email code settings.</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPolicyAttempt((n) => n + 1)}>
+                  Try again
+                </Button>
+              </div>
             )}
             {legacyToken && !recovery && (
               <Button

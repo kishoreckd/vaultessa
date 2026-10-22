@@ -4,17 +4,21 @@ The server can't read item names (they're encrypted), so emails refer to "an ite
 to the app, where the name is shown after the vault is unlocked.
 """
 
+import logging
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from fastapi import BackgroundTasks
 
 from app.core.config import get_settings
 from app.db.models.user_model import User
+from app.services import email_outbox_service as outbox
 from app.services import email_templates
 from app.services.email_service import email_enabled, send_email
 from app.services.email_templates import EmailContent, render
+
+logger = logging.getLogger("vaultessa.notifications")
 
 
 class Category(StrEnum):
@@ -40,13 +44,40 @@ def _app_url(path: str) -> str:
     return get_settings().app_base_url.rstrip("/") + path
 
 
-def _queue(background: BackgroundTasks, user: User, category: Category, content: EmailContent) -> None:
+def _queue(
+    background: BackgroundTasks,
+    user: User,
+    category: Category,
+    content: EmailContent,
+    ttl: timedelta | None = None,
+) -> None:
+    """Records the email in the durable outbox, then tries to send it right after the response.
+
+    `ttl` = how long the email is still worth sending (e.g. a code's lifetime); after that a
+    delayed retry marks it expired instead of delivering a stale code.
+    """
     if not email_enabled() or not _enabled(user, category):
         return
     if not any(p.startswith(("Hi ", "Welcome,")) for p in content.paragraphs):
         content = replace(content, greeting=f"Hi {user.name},")
     subject, text, html = render(content)
-    background.add_task(send_email, user.email, subject, text, html)
+    try:
+        outbox_id = outbox.enqueue(user.email, subject, text, html, category.value, ttl)
+    except Exception:
+        # Outbox unavailable: still try once rather than lose the email.
+        logger.warning("Email outbox unavailable; sending without retry tracking")
+        background.add_task(send_email, user.email, subject, text, html)
+        return
+    background.add_task(_deliver, user.email, subject, text, html, outbox_id=outbox_id)
+
+
+def _deliver(to: str, subject: str, text: str, html: str | None, *, outbox_id) -> None:
+    # `send_email` is looked up at call time so tests and previews can replace it.
+    outbox.deliver(outbox_id, send_email)
+
+
+def _code_ttl() -> timedelta:
+    return timedelta(minutes=get_settings().email_code_ttl_minutes)
 
 
 def verify_email(background: BackgroundTasks, user: User, token: str, code: str = "") -> None:
@@ -55,6 +86,7 @@ def verify_email(background: BackgroundTasks, user: User, token: str, code: str 
         user,
         Category.SECURITY,
         email_templates.verification_email(user.name, _app_url("/verify-email#token=" + token), code),
+        ttl=_code_ttl(),
     )
 
 
@@ -68,6 +100,7 @@ def forgot_password(background: BackgroundTasks, user: User, token: str, code: s
         user,
         Category.SECURITY,
         email_templates.forgot_password_email(user.name, _app_url("/recover#token=" + token), code),
+        ttl=_code_ttl(),
     )
 
 

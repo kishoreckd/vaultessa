@@ -3,6 +3,7 @@
 from app.db.models.api_token_grant_model import ApiTokenGrant
 from app.db.models.api_token_model import ApiToken
 from app.db.models.audit_log_model import AuditLog
+from app.db.models.email_outbox_model import EmailOutbox
 from app.db.models.expiry_notification_model import ExpiryNotification
 from app.db.models.external_share_model import ExternalShare
 from app.db.models.folder_model import Folder
@@ -28,6 +29,7 @@ __all__ = [
     "SecretAccess",
     "ExternalShare",
     "ExpiryNotification",
+    "EmailOutbox",
     "ApiToken",
     "ApiTokenGrant",
     "SecretHistory",

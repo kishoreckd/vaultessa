@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     email_resend_cooldown_seconds: int = Field(default=45, gt=0)
     email_code_ttl_minutes: int = Field(default=10, ge=1, le=30)
     email_code_max_attempts: int = Field(default=5, ge=1, le=10)
+    # After max wrong codes, block entering and requesting codes for this long.
+    email_code_lockout_minutes: int = Field(default=120, ge=1, le=1440)
     max_password_reset_attempts: int = Field(default=5, ge=1, le=20)
     external_share_max_lifetime_days: int = Field(default=90, gt=0)
     external_share_max_code_attempts: int = Field(default=5, ge=1, le=20)
@@ -73,6 +75,12 @@ class Settings(BaseSettings):
     smtp_timeout_seconds: int = Field(default=10, gt=0, le=120)
     mailpit_base_url: str | None = None  # Optional local SMTP acceptance test inbox.
     smtp_from: str | None = None
+    # Durable email outbox: every email is recorded, retried with backoff after SMTP/server failures.
+    email_outbox_worker_enabled: bool = True
+    email_outbox_poll_seconds: int = Field(default=60, ge=10, le=3600)
+    email_outbox_max_attempts: int = Field(default=8, ge=1, le=20)
+    email_outbox_default_ttl_hours: int = Field(default=24, ge=1, le=168)
+    email_outbox_retention_days: int = Field(default=30, ge=1, le=365)
     expiry_reminders_enabled: bool = True
     expiry_reminder_poll_seconds: int = Field(default=300, ge=30, le=86400)
     expiry_reminder_batch_size: int = Field(default=20, ge=1, le=100)

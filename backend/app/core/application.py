@@ -28,16 +28,20 @@ from app.utils.validation.json_validator import ApiJSONResponse
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services import email_outbox_service
     from app.services.email_jobs import run_loop
 
     stop = asyncio.Event()
-    task = asyncio.create_task(run_loop(stop)) if get_settings().expiry_reminders_enabled else None
+    tasks = []
+    if get_settings().email_outbox_worker_enabled:  # first pass resends anything pending after a restart
+        tasks.append(asyncio.create_task(email_outbox_service.run_loop(stop)))
+    if get_settings().expiry_reminders_enabled:
+        tasks.append(asyncio.create_task(run_loop(stop)))
     try:
         yield
     finally:
         stop.set()
-        if task:
-            await task
+        await asyncio.gather(*tasks)
 
 
 def create_app() -> FastAPI:

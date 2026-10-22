@@ -2,6 +2,20 @@
 name = "vaultessa-api"
 version = "0.1.0"
 requires-python = ">=3.12"
+# Hosts like Vercel install from here when pyproject.toml exists (they ignore requirements.txt).
+# Keep in sync with requirements.txt, which the Dockerfile (Railway) uses.
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.2",
+  "sqlalchemy==2.0.40",
+  "psycopg[binary]==3.2.6",
+  "alembic==1.15.2",
+  "pydantic==2.11.4",
+  "pydantic-settings==2.9.1",
+  "PyJWT==2.10.1",
+  "cryptography==44.0.2",
+  "jinja2==3.1.6",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

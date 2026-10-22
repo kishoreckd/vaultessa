@@ -15,6 +15,7 @@ os.environ["RATE_LIMIT_ENABLED"] = "false"
 # Never send real email or call Firebase from tests (overrides values from a local .env).
 os.environ["SMTP_HOST"] = ""
 os.environ["EXPIRY_REMINDERS_ENABLED"] = "false"
+os.environ["EMAIL_OUTBOX_WORKER_ENABLED"] = "false"
 os.environ["FIREBASE_PROJECT_ID"] = ""
 
 import pytest  # noqa: E402
