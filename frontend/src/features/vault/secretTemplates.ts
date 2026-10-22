@@ -1,5 +1,6 @@
 import { CodeXml, CreditCard, IdCard, KeyRound, Landmark, Server, SquareTerminal, StickyNote, Wifi, type LucideIcon } from 'lucide-react';
 import type { SecretType } from '../../lib/api/types';
+import { dateError, emailError, portError } from '../../lib/validation';
 import type { SecretPayload } from './vaultTypes';
 
 // The single place that defines what each secret type looks like (docs/08-personas-and-ux.md §6).
@@ -17,9 +18,15 @@ export type FieldDef = {
   placeholder?: string;
   /** offer the password generator */
   generate?: boolean;
-  /** render as a link in the detail view */
+  /** render as a link in the detail view; also validated (and https:// added) as a web address */
   link?: boolean;
+  /** extra check for optional fields with a format; returns an error message or null */
+  validate?: (value: string) => string | null;
 };
+
+const cardExpiryError = (value: string) =>
+  !value.trim() || /^(0[1-9]|1[0-2])\s*\/\s*(\d{2}|\d{4})$/.test(value.trim()) ? null : 'Use the format MM/YY.';
+const optionalEmailError = (value: string) => emailError(value, { optional: true });
 
 export type Template = {
   label: string;
@@ -90,7 +97,7 @@ export const TEMPLATES: Record<SecretType, Template> = {
     fields: [
       { key: 'cardholder', label: 'Name on card' },
       { key: 'number', label: 'Card number', secret: true, mono: true, placeholder: '1234 5678 9012 3456' },
-      { key: 'expiry', label: 'Expiry', mono: true, placeholder: 'MM/YY' },
+      { key: 'expiry', label: 'Expiry', mono: true, placeholder: 'MM/YY', validate: cardExpiryError },
       { key: 'cvv', label: 'Security code (CVV)', secret: true, mono: true },
       { key: 'pin', label: 'PIN', secret: true, mono: true },
     ],
@@ -104,10 +111,10 @@ export const TEMPLATES: Record<SecretType, Template> = {
     notesLabel: 'Notes',
     fields: [
       { key: 'fullName', label: 'Full name' },
-      { key: 'email', label: 'Email' },
+      { key: 'email', label: 'Email', validate: optionalEmailError },
       { key: 'phone', label: 'Phone', mono: true },
       { key: 'address', label: 'Address', multiline: true },
-      { key: 'dateOfBirth', label: 'Date of birth', placeholder: 'YYYY-MM-DD' },
+      { key: 'dateOfBirth', label: 'Date of birth', placeholder: 'YYYY-MM-DD', validate: dateError },
       { key: 'idNumber', label: 'Passport / ID number', secret: true, mono: true },
     ],
     subtitle: (d) => d.fields?.fullName ?? d.fields?.email,
@@ -155,7 +162,7 @@ export const TEMPLATES: Record<SecretType, Template> = {
       { key: 'url', label: 'Service / endpoint', placeholder: 'https://api.example.com', link: true },
       { key: 'username', label: 'Key ID / client ID', mono: true },
       { key: 'password', label: 'Secret / token', secret: true, mono: true },
-      { key: 'expires', label: 'Expires', placeholder: 'YYYY-MM-DD' },
+      { key: 'expires', label: 'Expires', placeholder: 'YYYY-MM-DD', validate: dateError },
     ],
     subtitle: (d) => hostOf(d.url) ?? d.username,
   },
@@ -180,7 +187,7 @@ export const TEMPLATES: Record<SecretType, Template> = {
     notesLabel: 'Notes',
     fields: [
       { key: 'url', label: 'Host / IP', mono: true, placeholder: 'db.internal or 10.0.0.12' },
-      { key: 'port', label: 'Port', mono: true, placeholder: '22' },
+      { key: 'port', label: 'Port', mono: true, placeholder: '22', validate: portError },
       { key: 'username', label: 'Username', mono: true },
       { key: 'password', label: 'Password', secret: true, generate: true, mono: true },
     ],

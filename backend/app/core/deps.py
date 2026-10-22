@@ -8,10 +8,10 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import UserSession
-from .errors import AppError
-from .security import decode_access_token
+from app.core.errors import AppError
+from app.core.security import decode_access_token
+from app.db.models.session_model import UserSession
+from app.db.session import get_db
 
 _bearer = HTTPBearer(auto_error=False)
 

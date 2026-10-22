@@ -1,19 +1,19 @@
 ---
 name: backend-module
-description: How to add or change a Vaultessa backend API module or endpoint (Python, FastAPI, Pydantic v2, SQLAlchemy 2). Use when creating routers, services, request/response schemas, authorization checks or audit events in backend/app/modules.
+description: How to add or change a Vaultessa backend API module or endpoint (Python, FastAPI, Pydantic v2, SQLAlchemy 2). Use when creating routers, services, request/response schemas, authorization checks or audit events in backend/app/api.
 ---
 
 # Adding a backend module / endpoint
 
 ## File layout
 ```
-backend/app/modules/<feature>/
-  __init__.py
-  schemas.py   Pydantic models: requests extend RequestModel, responses extend ApiModel
-  service.py   business logic + SQLAlchemy + authorization; raises AppError; NEVER commits
-  router.py    APIRouter: parse → service → audit.record → db.commit → return
+backend/app/api/<feature>.py                 HTTP routes, audit, commit
+backend/app/services/<feature>_service.py    business logic, authorization, no commit
+backend/app/schemas/<feature>.py             Pydantic request and response models
+backend/app/core/config.py                  settings
+backend/app/db/session.py                   database sessions and Base
 ```
-Register the router in `backend/app/main.py` (it's mounted under `/api`).
+Register the router in `backend/app/core/application.py` (it's mounted under `/api`).
 
 ## Steps
 1. **Schemas** — `RequestModel` gives camelCase aliases and `extra="forbid"`. Reuse the types in

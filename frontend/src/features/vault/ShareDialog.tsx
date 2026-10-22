@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { CircleAlert, Fingerprint, Info, LoaderCircle, Trash2, UserPlus } from 'lucide-react';
+import { CircleAlert, Fingerprint, Info, Link2, LoaderCircle, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirmAction } from '@/components/common/confirm-dialog';
 import { Drawer } from '@/components/common/drawer';
@@ -14,11 +14,13 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/lib/api/client';
 import { sharingApi } from '@/lib/api/endpoints';
 import { PERMISSIONS, type Permission, type UserLookup } from '@/lib/api/types';
 import { publicKeyFingerprint } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
+import { emailError } from '@/lib/validation';
 import { useSession } from '@/stores/session';
 import { emailDomain } from '../shares/hooks';
 import { useShareMutations, useShares } from './hooks';
@@ -31,10 +33,13 @@ export function ShareUsersDrawer({
   item,
   open,
   onOpenChange,
+  onUseLink,
 }: {
   item: DecryptedItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** switch to "Share link" for someone without an account, prefilled with their email */
+  onUseLink?: (email: string) => void;
 }) {
   return (
     <Drawer
@@ -44,12 +49,12 @@ export function ShareUsersDrawer({
       description="Give people in Vaultessa access. They'll see it in their vault under “Shared with me”."
       footer={<Button onClick={() => onOpenChange(false)}>Done</Button>}
     >
-      {open && <ShareUsersBody item={item} />}
+      {open && <ShareUsersBody item={item} onUseLink={onUseLink} />}
     </Drawer>
   );
 }
 
-function ShareUsersBody({ item }: { item: DecryptedItem }) {
+function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: (email: string) => void }) {
   const account = useSession((s) => s.account);
   const shares = useShares(item.id);
   const { grant, update, revoke } = useShareMutations(item);
@@ -57,23 +62,23 @@ function ShareUsersBody({ item }: { item: DecryptedItem }) {
   const [permission, setPermission] = useState<Permission>('VIEW');
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [noAccount, setNoAccount] = useState<string | null>(null);
   const [looking, setLooking] = useState(false);
+  const { formRef, errors, validate, clear } = useFormErrors<'email'>();
 
   async function onLookup(event: FormEvent) {
     event.preventDefault();
     setLookupError(null);
+    setNoAccount(null);
+    if (!validate({ email: emailError(email) })) return;
     setLooking(true);
+    const wanted = email.trim().toLowerCase();
     try {
-      const user = await sharingApi.lookup(email.trim().toLowerCase());
+      const user = await sharingApi.lookup(wanted);
       setCandidate({ user, fingerprint: await publicKeyFingerprint(user.publicKey) });
     } catch (err) {
-      setLookupError(
-        err instanceof ApiError && err.status === 404
-          ? 'No Vaultessa account uses that email. To share with someone outside Vaultessa, use “Share link”.'
-          : err instanceof ApiError
-            ? err.message
-            : 'Something went wrong. Try again.',
-      );
+      if (err instanceof ApiError && err.status === 404) setNoAccount(wanted);
+      else setLookupError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
     } finally {
       setLooking(false);
     }
@@ -165,15 +170,34 @@ function ShareUsersBody({ item }: { item: DecryptedItem }) {
             <AlertDescription>{lookupError}</AlertDescription>
           </Alert>
         )}
+        {noAccount && (
+          <Alert>
+            <Info />
+            <AlertTitle>{noAccount} doesn’t have a Vaultessa account</AlertTitle>
+            <AlertDescription>
+              <span>Send them a secure share link instead. They can open it in their browser without signing up.</span>
+              {onUseLink && (
+                <Button size="sm" className="mt-2" onClick={() => onUseLink(noAccount)}>
+                  <Link2 /> Create a share link for them
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {!candidate ? (
-          <form onSubmit={onLookup} className="grid gap-4">
+          <form ref={formRef} onSubmit={onLookup} noValidate className="grid gap-4">
             <TextField
               label="Their Vaultessa email"
               type="email"
               required
               placeholder="colleague@company.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              error={errors.email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setNoAccount(null);
+                clear('email');
+              }}
             />
             <div className="grid gap-2">
               <Label>What can they do?</Label>

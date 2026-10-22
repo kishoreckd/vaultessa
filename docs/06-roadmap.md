@@ -1,5 +1,7 @@
 # 06 — Roadmap
 
+Current implementation and remaining scope: [12-current-status.md](12-current-status.md).
+
 Each phase ends with: green tests, a security review of the diff (`/security-review`), and updated docs.
 
 ## Phase 0 — Foundation ✅ (this scaffold)
@@ -14,17 +16,21 @@ Each phase ends with: green tests, a security review of the diff (`/security-rev
 - [x] Auto-lock on inactivity, clipboard auto-clear
 
 ## Phase 1 — Personal vault MVP (≈ 4–6 weeks)
-- [ ] Account MFA (TOTP) + recovery codes
-- [ ] Email verification + Mailpit in dev; new-device login emails
-- [ ] Change master password (re-wrap), revoke other sessions
-- [ ] Sessions/devices page
+- [x] Account MFA (TOTP) + recovery codes
+- [x] Mailpit in dev; new-device and account-security notification emails
+- [x] Email verification and welcome emails
+- [x] Opt-in vault recovery key and forgotten-master-password flow
+- [x] Change master password (re-wrap), revoke other sessions
+- [x] Sessions/devices page
 - [ ] Trash (soft delete, restore, purge after 30 days)
 - [ ] TOTP field + live code display (RFC 6238)
-- [ ] Type-specific editors (card, identity, bank, SSH key, Wi-Fi, server)
+- [x] Type-specific editors (card, identity, bank, SSH key, Wi-Fi, server)
 - [ ] Tags, custom fields UI, password reveal history
-- [ ] Import (CSV, Bitwarden JSON, 1Password, LastPass, Chrome) / encrypted export
+- [x] Chrome-style CSV import and encrypted backup export/restore
+- [ ] Other import formats: Bitwarden JSON, 1Password, LastPass
 - [ ] Security dashboard: weak / reused / old passwords; zxcvbn-ts strength
-- [ ] Passphrase generator (EFF wordlist)
+- [x] Password/passphrase generator and collapsible inline options (local dictionary)
+- [ ] EFF wordlist option
 - [ ] File attachments (client-encrypted, S3/MinIO)
 - [ ] AES-GCM AAD binding (secret id) — EncString `v2`
 - [ ] Per-account login lockout (Redis), uniform register responses
@@ -54,10 +60,11 @@ Each phase ends with: green tests, a security review of the diff (`/security-rev
 - [ ] SSO (SAML 2.0 / OIDC) + SCIM provisioning (Entra ID, Okta, Google)
 - [ ] Access-request workflow with time-limited checkout & auto-revoke
 - [ ] Emergency access (trustees, wait period)
-- [ ] One-time external share links (key in URL fragment)
+- [x] One-time external share links (key in URL fragment)
 - [ ] Breach monitoring (HIBP k-anonymity)
 - [ ] IP allow-lists, offline-access policy
-- [ ] SIEM export (webhook / syslog), public API tokens + CLI
+- [x] Scoped API tokens, token UI, CLI and local Python/Node SDKs
+- [ ] SIEM export (webhook / syslog)
 - [ ] Org recovery key (opt-in)
 
 ## Phase 5 — Hardening & launch
@@ -71,4 +78,4 @@ Each phase ends with: green tests, a security review of the diff (`/security-rev
 1. Public-key lookup works for any registered email (enumeration) → Phase 2.
 2. Share revocation doesn't rotate the secret key → Phase 2.
 3. No AAD binding of ciphertext to secret id → Phase 1.
-4. No email verification / MFA → Phase 1.
+4. No email verification (MFA is implemented) → Phase 1.

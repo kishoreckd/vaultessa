@@ -167,3 +167,14 @@ def test_audit_log_pagination(api):
 
 def test_health(api):
     assert api.get("/api/health").json() == {"status": "ok", "db": "ok"}
+
+
+def test_shared_with_count_changes_with_grants(api):
+    alice, bob, carol = register(api, "alice"), register(api, "bob"), register(api, "carol")
+    item = create_secret(api, alice)
+    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 0
+    share(api, alice, item["id"], bob, "VIEW")
+    share(api, alice, item["id"], carol, "MANAGE")
+    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 2
+    api.delete(f"/api/secrets/{item['id']}/shares/{bob.id}", headers=alice.headers)
+    assert api.get("/api/secrets", headers=alice.headers).json()[0]["sharedWith"] == 1

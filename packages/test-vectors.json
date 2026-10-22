@@ -1,0 +1,17 @@
+{
+  "token": "pvm.00000000-0000-4000-8000-000000000001.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "credential": "pvm.00000000-0000-4000-8000-000000000001.4cH2xcZKGPlWFK04Aj1H8dIqTCTt0mbeggYAgmLq6pk=",
+  "row": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "type": "API_KEY",
+    "revision": 1,
+    "wrappedKey": "v1.AAECAwQFBgcICQoL.wRqkU/WozCfBdauAZ2bs3PNULzmB3CbwHf6FRLilkxg/Ha8sdWAVxLqYMu5GWoN9",
+    "encryptedData": "v1.DA0ODxAREhMUFRYX.2vm+Dj1VaKnQj9RDv7rQcgk5zCmfx3Amd8OXSbhpT5vTA9VkdwjCj/SWyGWnc1Trt/wFT4vAdB0C/n9pGqwP9Cq8lWvZ25wHVWPKaXv5knOiJce/foFwQzw="
+  },
+  "payload": {
+    "name": "SDK fixture",
+    "fields": {
+      "token": "fixture-not-a-real-secret"
+    }
+  }
+}

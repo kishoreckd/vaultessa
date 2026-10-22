@@ -1,0 +1,155 @@
+from functools import lru_cache
+from ipaddress import ip_address
+from pathlib import Path
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
+
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[2] / ".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    app_name: str = "Vaultessa API"
+    app_version: str = "0.1.0"
+    environment: Literal["development", "test", "production"] = "development"
+    database_url: str = Field(min_length=1)
+
+    # No defaults on purpose: the app fails closed if secrets are missing.
+    jwt_access_secret: str = Field(min_length=32)
+    prelogin_secret: str = Field(min_length=32)
+    # Encrypts server-side auth secrets at rest (TOTP seeds). Not related to vault data.
+    mfa_encryption_key: str = Field(min_length=32)
+
+    # Security policy. Stored scrypt hashes retain their original work factors.
+    scrypt_n: int = Field(default=2**15, ge=2**15, le=2**20)
+    scrypt_r: int = Field(default=8, ge=8, le=32)
+    scrypt_p: int = Field(default=1, ge=1, le=16)
+    scrypt_dklen: int = Field(default=32, ge=32, le=64)
+    scrypt_maxmem: int = Field(default=64 * 1024 * 1024, ge=64 * 1024 * 1024, le=1024**3)
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    mfa_token_ttl_minutes: int = Field(default=5, gt=0, le=15)
+    max_failed_logins: int = Field(default=5, ge=1, le=20)
+    account_lock_minutes: int = Field(default=15, gt=0)
+    verification_ttl_hours: int = Field(default=24, gt=0)
+    password_reset_ttl_minutes: int = Field(default=15, gt=0, le=60)
+    email_resend_cooldown_seconds: int = Field(default=60, gt=0)
+    max_password_reset_attempts: int = Field(default=5, ge=1, le=20)
+    external_share_max_lifetime_days: int = Field(default=90, gt=0)
+    external_share_max_code_attempts: int = Field(default=5, ge=1, le=20)
+    api_token_max_lifetime_days: int = Field(default=730, gt=0)
+    # Existing authenticator secrets don't store a separate period/digit policy.
+    totp_period_seconds: Literal[30] = 30
+    totp_digits: Literal[6] = 6
+    totp_issuer: str = "Vaultessa"
+    recovery_code_count: int = Field(default=10, ge=1, le=50)
+    refresh_cookie_name: str = Field(default="pv_refresh", pattern=r"^[A-Za-z0-9_-]+$")
+
+    rate_limit_window_seconds: int = Field(default=60, gt=0)
+    rate_limit_global_requests: int = Field(default=300, gt=0)
+    rate_limit_auth_requests: int = Field(default=10, gt=0)
+    rate_limit_refresh_requests: int = Field(default=30, gt=0)
+    rate_limit_lookup_requests: int = Field(default=30, gt=0)
+    rate_limit_public_share_requests: int = Field(default=60, gt=0)
+    rate_limit_machine_requests: int = Field(default=120, gt=0)
+
+    access_token_ttl_minutes: int = Field(default=15, gt=0)
+    refresh_token_ttl_days: int = Field(default=30, gt=0)
+    default_kdf_iterations: int = Field(default=600_000, ge=100_000)
+    cors_origins: Annotated[list[str], NoDecode]
+    rate_limit_enabled: bool = True
+
+    # Outgoing email (optional). Dev uses Mailpit from docker-compose: SMTP 1026, inbox UI on :8026.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = False
+    smtp_timeout_seconds: int = Field(default=10, gt=0, le=120)
+    smtp_from: str | None = None
+    expiry_reminders_enabled: bool = True
+    expiry_reminder_poll_seconds: int = Field(default=300, ge=30, le=86400)
+    expiry_reminder_batch_size: int = Field(default=20, ge=1, le=100)
+    # Public origin(s) of the web app; links in emails must start with one of these.
+    app_base_url: str
+
+    # Firebase project used for SMS one-time codes (two-step verification). Unset = SMS option hidden.
+    firebase_project_id: str | None = None
+    firebase_jwks_url: str = (
+        "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+    )
+    firebase_issuer_base_url: str = "https://securetoken.google.com"
+    firebase_max_auth_age_seconds: int = Field(default=300, gt=0)
+    firebase_jwks_cache_seconds: int = Field(default=3600, gt=0)
+    firebase_token_leeway_seconds: int = Field(default=30, ge=0)
+
+    @field_validator("totp_period_seconds", "totp_digits", mode="before")
+    @classmethod
+    def parse_authenticator_format(cls, value: object) -> object:
+        return int(value) if isinstance(value, str) else value
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def select_psycopg_driver(cls, value: object) -> object:
+        if isinstance(value, str) and value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+psycopg://", 1)
+        return value
+
+    @model_validator(mode="after")
+    def validate_deployment_urls(self) -> "Settings":
+        if self.scrypt_n & (self.scrypt_n - 1):
+            raise ValueError("SCRYPT_N must be a power of two")
+        if self.scrypt_maxmem <= 128 * self.scrypt_n * self.scrypt_r + 256 * self.scrypt_r * self.scrypt_p:
+            raise ValueError("SCRYPT_MAXMEM must cover the configured scrypt work factors and overhead")
+        for value in [self.app_base_url, *self.cors_origins]:
+            parsed = urlsplit(value)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+                or parsed.path not in {"", "/"}
+            ):
+                raise ValueError(
+                    "APP_BASE_URL and CORS_ORIGINS must be HTTP(S) origins without paths or credentials"
+                )
+            if self.is_production and (
+                parsed.scheme != "https"
+                or parsed.hostname.lower().rstrip(".") == "localhost"
+                or parsed.hostname.lower().rstrip(".").endswith((".localhost", ".local"))
+            ):
+                raise ValueError("Production app URLs must use HTTPS and a non-local hostname")
+            if self.is_production:
+                try:
+                    address = ip_address(parsed.hostname)
+                except ValueError:
+                    address = None
+                if address and (address.is_loopback or address.is_unspecified):
+                    raise ValueError("Production app URLs cannot use loopback or unspecified addresses")
+        if not self.cors_origins:
+            raise ValueError("CORS_ORIGINS must contain at least one origin")
+        if self.smtp_host and not self.smtp_from:
+            raise ValueError("SMTP_FROM is required when SMTP_HOST is configured")
+        self.app_base_url = self.app_base_url.rstrip("/")
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]  # values come from the environment

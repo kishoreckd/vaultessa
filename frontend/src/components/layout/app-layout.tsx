@@ -46,7 +46,7 @@ const NAV: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }>
   { to: '/', label: 'Vault', icon: Vault, end: true },
   { to: '/security', label: 'Security', icon: ShieldCheck },
   { to: '/generator', label: 'Generator', icon: WandSparkles },
-  { to: '/activity', label: 'Activity', icon: Activity },
+  { to: '/links', label: 'Shared', icon: Link2 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -99,7 +99,9 @@ export function AppLayout() {
                 className={({ isActive }) =>
                   cn(
                     'flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
-                    isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    isActive
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                   )
                 }
               >
@@ -110,7 +112,11 @@ export function AppLayout() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1">
-            <IconAction label="Keyboard shortcuts (?)" className="hidden sm:inline-flex" onClick={() => setShortcutsOpen(true)}>
+            <IconAction
+              label="Keyboard shortcuts (?)"
+              className="hidden sm:inline-flex"
+              onClick={() => setShortcutsOpen(true)}
+            >
               <Keyboard />
             </IconAction>
             <ThemeToggle />
@@ -143,6 +149,12 @@ export function AppLayout() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate('/settings')}>
                   <Settings /> Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate('/activity')}>
+                  <Activity /> Activity log
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate('/developer')}>
+                  <Keyboard /> Developer access
                 </DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
@@ -180,14 +192,20 @@ export function AppLayout() {
       </main>
 
       {/* Bottom tab bar on phones (thumb reach). */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background md:hidden">
+      <nav
+        aria-label="Main"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background md:hidden"
+      >
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
             className={({ isActive }) =>
-              cn('flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-primary' : 'text-muted-foreground')
+              cn(
+                'flex flex-col items-center gap-0.5 py-2 text-[11px]',
+                isActive ? 'text-primary' : 'text-muted-foreground',
+              )
             }
           >
             <Icon className="size-5" />

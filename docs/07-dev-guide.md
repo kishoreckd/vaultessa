@@ -8,7 +8,7 @@ Backend commands run from `backend/` with the venv's interpreter: `.\.venv\Scrip
 | --- | --- | --- |
 | root | `docker compose up -d` | Postgres (host 5433) + Mailpit (UI 8026, SMTP 1026). Override with `POSTGRES_PORT`, `MAILPIT_UI_PORT`, `MAILPIT_SMTP_PORT` |
 | backend | `uvicorn app.main:app --port 8010 --reload` | API with reload on :8010, docs at `/api/docs` |
-| backend | `alembic revision --autogenerate -m "..."` | Generate a migration from `app/models.py` |
+| backend | `alembic revision --autogenerate -m "..."` | Generate a migration from `app/db/models/` |
 | backend | `alembic upgrade head` | Apply migrations |
 | backend | `pytest` | Unit + integration tests (real Postgres `passvault_test`) |
 | backend | `ruff check .` / `ruff format .` | Lint / format |
@@ -22,7 +22,7 @@ Port 8010 (not FastAPI's usual 8000) lets Vaultessa run alongside other local Fa
 
 - **Python**: type hints everywhere, ruff clean, sync SQLAlchemy sessions in sync endpoints.
 - **TypeScript strict** in the frontend. No `any` without a comment explaining why.
-- **Backend modules**: `schemas.py` (Pydantic) → `service.py` (logic, SQLAlchemy, authorization,
+- **Backend layers**: `schemas.py` (Pydantic) → `service.py` (logic, SQLAlchemy, authorization,
   raises `AppError`, never commits) → `router.py` (HTTP, audit, single commit).
 - **API casing**: snake_case in Python, camelCase on the wire via `ApiModel`/`RequestModel` aliases.
 - **Frontend features**: one folder per feature; API calls via `lib/api/*`; all crypto via

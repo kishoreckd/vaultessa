@@ -9,7 +9,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/lib/api/client';
+import { emailError, requiredText } from '@/lib/validation';
 import { estimateStrength } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 import { AuthCard } from './AuthCard';
@@ -45,16 +47,37 @@ export function RegisterPage() {
   const longEnough = password.length >= MIN_LENGTH;
   const strongEnough = strength.score >= 2;
   const matches = password.length > 0 && password === confirm;
-  const ready = longEnough && strongEnough && matches && acknowledged && !!name.trim() && !!email.trim();
+  const { formRef, errors, validate, clear } = useFormErrors<
+    'name' | 'email' | 'password' | 'confirm' | 'ack'
+  >();
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    if (!ready) return setError('Finish the checklist above to continue.');
+    const ok = validate({
+      name: requiredText(name, 'your name'),
+      email: emailError(email),
+      password: !password
+        ? 'Choose a master password.'
+        : !longEnough
+          ? `Use at least ${MIN_LENGTH} characters.`
+          : !strongEnough
+            ? 'Make it harder to guess — add more words or characters.'
+            : null,
+      confirm: !confirm
+        ? 'Type your master password again.'
+        : !matches
+          ? 'The two passwords don’t match.'
+          : null,
+      ack: acknowledged ? null : 'Tick the box to confirm you’ve stored your master password safely.',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await register({ name, email, password });
-      toast.success('Your vault is ready', { description: 'Start by adding your most-used login.' });
+      toast.success('Your vault is ready', {
+        description: 'Check your email to verify your address, then enable vault recovery in Settings.',
+      });
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create your account. Please try again.');
@@ -65,15 +88,37 @@ export function RegisterPage() {
 
   return (
     <AuthCard title="Create your vault" subtitle="Your encryption keys are created in this browser.">
-      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+      <form ref={formRef} onSubmit={onSubmit} className="grid gap-4" noValidate>
         {error && (
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <TextField label="Your name" autoComplete="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-        <TextField label="Work email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <TextField
+          label="Your name"
+          autoComplete="name"
+          required
+          maxLength={100}
+          value={name}
+          error={errors.name}
+          onChange={(e) => {
+            setName(e.target.value);
+            clear('name');
+          }}
+        />
+        <TextField
+          label="Email"
+          type="email"
+          autoComplete="username"
+          required
+          value={email}
+          error={errors.email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            clear('email');
+          }}
+        />
         <div className="grid gap-2">
           <PasswordInput
             label="Master password"
@@ -81,7 +126,11 @@ export function RegisterPage() {
             required
             hint="Tip: four or more random, unrelated words are strong and easy to remember."
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            error={errors.password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clear('password');
+            }}
           />
           {password && <StrengthMeter strength={strength} />}
         </div>
@@ -90,7 +139,11 @@ export function RegisterPage() {
           autoComplete="new-password"
           required
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          error={errors.confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            clear('confirm');
+          }}
         />
         <ul className="grid gap-1 rounded-lg bg-muted/60 p-3 text-xs" aria-label="Master password checklist">
           <Requirement met={longEnough}>{`At least ${MIN_LENGTH} characters`}</Requirement>
@@ -101,16 +154,35 @@ export function RegisterPage() {
           <TriangleAlert className="text-warning" />
           <AlertTitle>Only you can unlock your vault</AlertTitle>
           <AlertDescription>
-            Vaultessa can’t see or reset your master password. If you forget it, your data can’t be recovered.
+            Vaultessa can’t see your master password. Recovery requires a verified email and a vault recovery
+            key saved in advance. Without that key, a forgotten password cannot unlock your existing data.
             <div className="mt-2 flex items-center gap-2">
-              <Checkbox id={ackId} checked={acknowledged} onCheckedChange={(v) => setAcknowledged(v === true)} />
+              <Checkbox
+                id={ackId}
+                checked={acknowledged}
+                aria-invalid={errors.ack ? true : undefined}
+                aria-describedby={errors.ack ? `${ackId}-error` : undefined}
+                onCheckedChange={(v) => {
+                  setAcknowledged(v === true);
+                  clear('ack');
+                }}
+              />
               <Label htmlFor={ackId} className="text-sm font-normal text-foreground">
                 I understand and have stored it somewhere safe
               </Label>
             </div>
+            {errors.ack && (
+              <p
+                id={`${ackId}-error`}
+                className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-destructive"
+              >
+                <CircleAlert className="size-3.5" />
+                {errors.ack}
+              </p>
+            )}
           </AlertDescription>
         </Alert>
-        <Button type="submit" size="lg" className="w-full" disabled={busy || !ready}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy && <LoaderCircle className="animate-spin" />}
           {busy ? 'Creating your encryption keys…' : 'Create my vault'}
         </Button>

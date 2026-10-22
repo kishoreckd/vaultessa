@@ -15,6 +15,41 @@ def _create(api, user, secret_id, **overrides):
     return api.post("/api/external-shares", json=body, headers=user.headers)
 
 
+def test_update_link_limits_preserves_usage_and_checks_ownership(api):
+    alice, bob = register(api, "alice"), register(api, "bob")
+    item = create_secret(api, alice)
+    link = _create(api, alice, item["id"], maxViews=5).json()
+    url = f"/api/external-shares/{link['id']}/limits"
+    body = {"expiresAt": _expires(48), "maxViews": 10}
+    assert api.patch(url, json=body).status_code == 401
+    assert api.patch(url, json=body, headers=bob.headers).status_code == 404
+    assert api.post(f"/api/public/shares/{link['id']}/open", json={}).status_code == 200
+    changed = api.patch(url, json=body, headers=alice.headers)
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["viewCount"] == 1 and changed.json()["maxViews"] == 10
+    events = api.get("/api/audit", params={"linkId": link["id"]}, headers=alice.headers).json()["items"]
+    assert any(event["action"] == "EXTERNAL_SHARE_VIEW" for event in events)
+    assert all(event["metadata"]["linkId"] == link["id"] for event in events)
+    assert api.get("/api/audit", params={"linkId": link["id"]}, headers=bob.headers).json()["items"] == []
+    assert api.patch(url, json={**body, "maxViews": 1}, headers=alice.headers).status_code == 400
+    assert api.patch(url, json={**body, "maxViews": 101}, headers=alice.headers).status_code == 400
+    api.delete(f"/api/external-shares/{link['id']}", headers=alice.headers)
+    assert api.patch(url, json=body, headers=alice.headers).status_code == 400
+
+
+def test_one_time_link_cannot_be_opened_concurrently(api):
+    from concurrent.futures import ThreadPoolExecutor
+
+    alice = register(api, "alice")
+    item = create_secret(api, alice)
+    link = _create(api, alice, item["id"], maxViews=1).json()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(
+            pool.map(lambda _: api.post(f"/api/public/shares/{link['id']}/open", json={}), range(4))
+        )
+    assert sorted(response.status_code for response in responses) == [200, 410, 410, 410]
+
+
 def test_one_time_link_is_deleted_after_first_view(api):
     alice = register(api, "alice")
     item = create_secret(api, alice)

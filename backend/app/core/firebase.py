@@ -9,11 +9,8 @@ from functools import lru_cache
 
 import jwt
 
-from ..config import get_settings
-from .errors import AppError
-
-GOOGLE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
-MAX_AUTH_AGE_SECONDS = 300
+from app.core.config import get_settings
+from app.core.errors import AppError
 
 
 def firebase_enabled() -> bool:
@@ -22,12 +19,16 @@ def firebase_enabled() -> bool:
 
 @lru_cache
 def _jwks_client() -> jwt.PyJWKClient:
-    return jwt.PyJWKClient(GOOGLE_JWKS_URL, cache_keys=True, lifespan=3600)
+    settings = get_settings()
+    return jwt.PyJWKClient(
+        settings.firebase_jwks_url, cache_keys=True, lifespan=settings.firebase_jwks_cache_seconds
+    )
 
 
 def verify_phone_token(id_token: str) -> str:
     """Returns the verified E.164 phone number, or raises AppError."""
-    project = get_settings().firebase_project_id
+    settings = get_settings()
+    project = settings.firebase_project_id
     if not project:
         raise AppError.bad_request("SMS verification isn't set up on this server")
     try:
@@ -37,14 +38,14 @@ def verify_phone_token(id_token: str) -> str:
             signing_key.key,
             algorithms=["RS256"],
             audience=project,
-            issuer=f"https://securetoken.google.com/{project}",
+            issuer=f"{settings.firebase_issuer_base_url.rstrip('/')}/{project}",
             options={"require": ["exp", "iat", "aud", "iss", "sub"]},
-            leeway=30,
+            leeway=settings.firebase_token_leeway_seconds,
         )
     except (jwt.PyJWTError, OSError):
         raise AppError.unauthorized("The SMS verification couldn't be confirmed. Try again.") from None
 
-    if time.time() - float(claims.get("auth_time", 0)) > MAX_AUTH_AGE_SECONDS:
+    if time.time() - float(claims.get("auth_time", 0)) > settings.firebase_max_auth_age_seconds:
         raise AppError.unauthorized("That SMS verification is too old. Request a new code.")
     phone = claims.get("phone_number")
     provider = (claims.get("firebase") or {}).get("sign_in_provider")

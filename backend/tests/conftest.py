@@ -3,6 +3,8 @@ from pathlib import Path
 
 # Must be set before the app (and its settings/engine) is imported.
 os.environ["ENVIRONMENT"] = "test"
+os.environ["APP_BASE_URL"] = "http://127.0.0.1:5173"
+os.environ["CORS_ORIGINS"] = "http://127.0.0.1:5173,http://localhost:5173"
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://passvault:passvault@localhost:5433/passvault_test"
 )
@@ -12,6 +14,7 @@ os.environ["MFA_ENCRYPTION_KEY"] = "test-mfa-encryption-key-that-is-at-least-32-
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 # Never send real email or call Firebase from tests (overrides values from a local .env).
 os.environ["SMTP_HOST"] = ""
+os.environ["EXPIRY_REMINDERS_ENABLED"] = "false"
 os.environ["FIREBASE_PROJECT_ID"] = ""
 
 import pytest  # noqa: E402
@@ -22,8 +25,8 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
 
-from app.database import Base, engine  # noqa: E402
-from app.main import app  # noqa: E402
+from app.db.session import Base, engine
+from app.main import app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 

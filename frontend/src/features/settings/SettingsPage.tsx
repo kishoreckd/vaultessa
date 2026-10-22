@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { FormField } from '@/components/common/form-field';
 import { PageHeader } from '@/components/common/page';
 import { ShortcutsList } from '@/components/layout/shortcuts-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,8 +12,20 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { publicKeyFingerprint } from '@/lib/crypto';
 import { AUTO_LOCK_OPTIONS, CLIPBOARD_OPTIONS, usePrefs } from '@/lib/prefs';
 import { useSession } from '@/stores/session';
+import { AccountSecurity } from './AccountSecurity';
+import { ChangePassword } from './ChangePassword';
+import { ImportExport } from './ImportExport';
+import { VaultRecovery } from './VaultRecovery';
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -23,18 +34,6 @@ function Section({ title, description, children }: { title: string; description?
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
-  );
-}
-
-function ComingSoon({ title, body }: { title: string; body: string }) {
-  return (
-    <li className="flex items-center gap-3 py-3">
-      <div className="grid flex-1">
-        <span className="text-sm font-medium">{title}</span>
-        <span className="text-xs text-muted-foreground">{body}</span>
-      </div>
-      <Badge variant="secondary">Coming soon</Badge>
-    </li>
   );
 }
 
@@ -55,7 +54,10 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
-      <PageHeader title="Settings" description="Preferences for this device and details about your account." />
+      <PageHeader
+        title="Settings"
+        description="Preferences for this device and details about your account."
+      />
 
       <Section title="Appearance">
         <Tabs value={theme ?? 'system'} onValueChange={setTheme}>
@@ -75,7 +77,11 @@ export function SettingsPage() {
 
       <Section title="Locking & clipboard" description="Balance convenience and safety for how you work.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField id={lockId} label="Lock the vault after" hint="Of no activity. Reloading the page always locks.">
+          <FormField
+            id={lockId}
+            label="Lock the vault after"
+            hint="Of no activity. Reloading the page always locks."
+          >
             <Select
               value={String(prefs.autoLockMinutes)}
               onValueChange={(v) => {
@@ -95,7 +101,11 @@ export function SettingsPage() {
               </SelectContent>
             </Select>
           </FormField>
-          <FormField id={clipId} label="Clear copied passwords after" hint="Best effort: the browser may block it when unfocused.">
+          <FormField
+            id={clipId}
+            label="Clear copied passwords after"
+            hint="Best effort: the browser may block it when unfocused."
+          >
             <Select
               value={String(prefs.clipboardClearSeconds)}
               onValueChange={(v) => {
@@ -132,23 +142,31 @@ export function SettingsPage() {
             <dd>{account.email}</dd>
           </div>
         </dl>
-        <ul className="mt-4 divide-y border-t">
-          <ComingSoon title="Change master password" body="Re-encrypts your vault key and signs out other devices." />
-          <ComingSoon title="Two-step verification" body="Require an authenticator code when signing in." />
-          <ComingSoon title="Devices & sessions" body="See where you’re signed in and sign out remotely." />
-          <ComingSoon title="Import & export" body="Bring passwords from your browser or another manager." />
-        </ul>
+        <ChangePassword />
       </Section>
 
-      <Section title="Encryption" description="Exactly how your data is protected. All of this happens on your device.">
+      <AccountSecurity />
+      <VaultRecovery />
+      <ImportExport />
+
+      <Section
+        title="Encryption"
+        description="Exactly how your data is protected. All of this happens on your device."
+      >
         <dl className="divide-y text-sm">
           {[
-            ['Key derivation', `PBKDF2-HMAC-SHA256, ${account.kdfIterations.toLocaleString()} iterations, 128-bit salt`],
+            [
+              'Key derivation',
+              `PBKDF2-HMAC-SHA256, ${account.kdfIterations.toLocaleString()} iterations, 128-bit salt`,
+            ],
             ['Key separation', 'HKDF-SHA256 (login proof and encryption key are independent)'],
             ['Vault & item encryption', 'AES-256-GCM, a separate random key per item'],
             ['Sharing', 'RSA-OAEP 3072-bit with SHA-256'],
             ['Share links', 'Key in the link fragment (never sent to servers) + optional access code'],
-            ['What the server stores', 'Ciphertext, public keys and a scrypt hash of your login proof — never your master password'],
+            [
+              'What the server stores',
+              'Ciphertext, public keys and a scrypt hash of your login proof — never your master password',
+            ],
           ].map(([label, value]) => (
             <div key={label} className="grid gap-1 py-2.5 sm:grid-cols-[12rem_1fr]">
               <dt className="text-muted-foreground">{label}</dt>
@@ -159,7 +177,9 @@ export function SettingsPage() {
             <dt className="text-muted-foreground">Your key fingerprint</dt>
             <dd>
               <code className="font-mono">{fingerprint ?? '…'}</code>
-              <p className="text-xs text-muted-foreground">People sharing sensitive items with you can compare this.</p>
+              <p className="text-xs text-muted-foreground">
+                People sharing sensitive items with you can compare this.
+              </p>
             </dd>
           </div>
         </dl>

@@ -1,11 +1,11 @@
 ---
 name: database-migration
-description: How to change the Vaultessa database schema safely with SQLAlchemy models and Alembic migrations (add tables/columns, indexes, relations, enum values) and keep docs in sync. Use when editing backend/app/models.py or backend/migrations.
+description: How to change the Vaultessa database schema safely with SQLAlchemy models and Alembic migrations (add tables/columns, indexes, relations, enum values) and keep docs in sync. Use when editing backend/app/db/models/ or backend/migrations.
 ---
 
 # Changing the schema
 
-1. Edit `backend/app/models.py`.
+1. Edit `backend/app/db/models/`.
    - Ids: `id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)`.
    - User content → `encrypted_<name>: Mapped[str] = mapped_column(Text)` (ciphertext, see `zero-knowledge-crypto`).
    - Every FK gets an explicit `ondelete=` and an index if you filter by it.

@@ -3,10 +3,11 @@ import time
 import pytest
 
 from app.core import firebase, totp
+from app.core.config import get_settings
 
 from .helpers import b64, register
 
-PERIOD = totp.PERIOD
+PERIOD = get_settings().totp_period_seconds
 
 
 def _code(secret: str, offset: int = 0) -> str:
@@ -59,6 +60,45 @@ def test_totp_enrolment_and_login(api):
         "/api/auth/login/mfa", json={"mfaToken": body["mfaToken"], "method": "totp", "code": next_code}
     )
     assert ok.status_code == 200 and ok.json()["account"]["totpEnabled"] is True
+
+
+def test_password_change_invalidates_pending_mfa_challenge(api):
+    from .helpers import ENC_2
+
+    alice = register(api, "alice")
+    _, codes, _ = _enable_totp(api, alice)
+    challenge = _login(api, alice).json()
+    changed = api.post(
+        "/api/account/password",
+        headers=alice.headers,
+        json={
+            "authHash": alice.auth_hash,
+            "newAuthHash": b64("new-client-proof"),
+            "kdfSalt": b64("new-sixteen-salt"),
+            "kdfIterations": 600000,
+            "protectedVaultKey": ENC_2,
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    assert (
+        api.post(
+            "/api/auth/login/mfa",
+            json={"mfaToken": challenge["mfaToken"], "method": "recovery", "code": codes[0]},
+        ).status_code
+        == 401
+    )
+
+
+def test_concurrent_recovery_code_cannot_be_reused(api):
+    from concurrent.futures import ThreadPoolExecutor
+
+    alice = register(api, "alice")
+    _, codes, _ = _enable_totp(api, alice)
+    challenge = _login(api, alice).json()
+    body = {"mfaToken": challenge["mfaToken"], "method": "recovery", "code": codes[0]}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda _: api.post("/api/auth/login/mfa", json=body), range(2)))
+    assert sorted(response.status_code for response in responses) == [200, 401]
 
 
 def test_recovery_code_works_once(api):

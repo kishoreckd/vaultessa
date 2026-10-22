@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { PasswordInput } from '@/components/common/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useFormErrors } from '@/hooks/useFormErrors';
 import { CryptoError } from '@/lib/crypto';
 import { usePrefs } from '@/lib/prefs';
 import { useSession, type LockReason } from '@/stores/session';
@@ -29,9 +30,11 @@ export function UnlockPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { formRef, errors, validate, clear } = useFormErrors<'password'>();
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!validate({ password: password ? null : 'Enter your master password.' })) return;
     setBusy(true);
     setError(null);
     try {
@@ -59,7 +62,7 @@ export function UnlockPage() {
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-4">
+      <form ref={formRef} onSubmit={onSubmit} noValidate className="grid gap-4">
         {error && (
           <Alert variant="destructive">
             <CircleAlert />
@@ -72,13 +75,22 @@ export function UnlockPage() {
           autoFocus
           required
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          error={errors.password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            clear('password');
+          }}
         />
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy && <LoaderCircle className="animate-spin" />}
           {busy ? 'Unlocking…' : 'Unlock'}
         </Button>
       </form>
+      <p className="mt-4 text-center">
+        <Link to="/forgot-password" className="text-sm text-primary underline">
+          Forgot master password?
+        </Link>
+      </p>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Not you?{' '}
         <Button

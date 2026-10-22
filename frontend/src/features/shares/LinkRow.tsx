@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Copy, KeyRound, LoaderCircle, RotateCcw, ShieldAlert, Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
+import { ChevronRight, Copy, FileX2, KeyRound, LoaderCircle, RotateCcw, ShieldAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { confirmAction } from '@/components/common/confirm-dialog';
 import { IconAction } from '@/components/common/icon-action';
@@ -16,6 +17,7 @@ import {
 import { useClipboard } from '@/hooks/useClipboard';
 import type { ExternalShare } from '@/lib/api/types';
 import { useSession } from '@/stores/session';
+import { ItemAvatar } from '../vault/ItemAvatar';
 import { can, relativeTime, type DecryptedItem } from '../vault/vaultTypes';
 import { buildLink, readOwnerSecret, STATUS_LABEL, timingFor, useReopenShareLink, useRevokeShareLink } from './hooks';
 import { DEFAULT_TIMING, LinkTimingFields, type LinkTimingValue } from './LinkTimingFields';
@@ -44,14 +46,14 @@ function accessText(link: ExternalShare) {
 export function LinkRow({
   link,
   item,
-  itemName,
+  showItem,
   onShareAgain,
 }: {
   link: ExternalShare;
   /** current item (needed to re-open with fresh values); undefined if deleted or not loaded */
   item?: DecryptedItem;
-  /** show the item's name (on the "Shared links" page) */
-  itemName?: string;
+  /** show which item the link shares, linking to it (on the "Shared links" page) */
+  showItem?: boolean;
   /** for links that can't be re-opened (created before re-open existed) */
   onShareAgain?: () => void;
 }) {
@@ -85,10 +87,32 @@ export function LinkRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm">
+      {showItem &&
+        (item ? (
+          <ItemAvatar type={item.type} name={item.data.name} />
+        ) : (
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <FileX2 className="size-4" />
+          </span>
+        ))}
       <div className="grid min-w-0 flex-1 gap-1">
-        {itemName && <span className="truncate font-medium">{itemName}</span>}
+        {showItem &&
+          (item ? (
+            <Link
+              to={`/?item=${item.id}`}
+              className="flex w-fit max-w-full items-center gap-1 truncate font-medium underline-offset-4 hover:text-primary hover:underline"
+            >
+              <span className="truncate">{item.data.name}</span>
+              <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="sr-only">(open item)</span>
+            </Link>
+          ) : (
+            <span className="truncate font-medium text-muted-foreground" title="The item was deleted. The link record is kept for your history.">
+              Deleted item
+            </span>
+          ))}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className={itemName ? 'truncate text-muted-foreground' : 'truncate font-medium'}>
+          <span className={showItem ? 'truncate text-muted-foreground' : 'truncate font-medium'}>
             {link.recipientEmail ?? 'Anyone with the link'}
           </span>
           {link.outsideDomain && (

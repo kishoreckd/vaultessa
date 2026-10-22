@@ -70,6 +70,35 @@ export function useExternalShares(secretId?: string) {
   });
 }
 
+export type LinkInsight = {
+  active: number;
+  /** total opens across all of the item's links */
+  views: number;
+  lastViewedAt: string | null;
+  /** an active link goes to someone outside the owner's email domain */
+  outsideActive: boolean;
+  /** soonest expiry among active links */
+  nextExpiry: string | null;
+};
+
+/** Per-item summary of share links, for flags in the vault list and detail view. */
+export function summarizeLinks(links: ExternalShare[] | undefined): Map<string, LinkInsight> {
+  const out = new Map<string, LinkInsight>();
+  for (const link of links ?? []) {
+    if (!link.secretId) continue;
+    const s = out.get(link.secretId) ?? { active: 0, views: 0, lastViewedAt: null, outsideActive: false, nextExpiry: null };
+    s.views += link.viewCount;
+    if (link.lastViewedAt && (!s.lastViewedAt || link.lastViewedAt > s.lastViewedAt)) s.lastViewedAt = link.lastViewedAt;
+    if (link.status === 'active') {
+      s.active += 1;
+      s.outsideActive ||= link.outsideDomain;
+      if (!s.nextExpiry || link.expiresAt < s.nextExpiry) s.nextExpiry = link.expiresAt;
+    }
+    out.set(link.secretId, s);
+  }
+  return out;
+}
+
 export function useCreateShareLink() {
   const qc = useQueryClient();
   return useMutation({

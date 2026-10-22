@@ -9,9 +9,8 @@ import struct
 import time
 from urllib.parse import quote
 
-PERIOD = 30
-DIGITS = 6
-_RECOVERY_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"  # no look-alikes
+from app.constants.security import RECOVERY_CODE_ALPHABET
+from app.core.config import get_settings
 
 
 def new_secret() -> str:
@@ -27,31 +26,32 @@ def code_at(secret: str, counter: int) -> str:
     mac = hmac.new(_key(secret), struct.pack(">Q", counter), hashlib.sha1).digest()
     offset = mac[-1] & 0x0F
     value = struct.unpack(">I", mac[offset : offset + 4])[0] & 0x7FFFFFFF
-    return str(value % 10**DIGITS).zfill(DIGITS)
+    return str(value % 10 ** get_settings().totp_digits).zfill(get_settings().totp_digits)
 
 
 def matching_counter(secret: str, code: str, now: float | None = None, window: int = 1) -> int | None:
     """Returns the time-step counter the code belongs to (±window steps for clock drift), else None."""
     code = code.strip().replace(" ", "")
-    if len(code) != DIGITS or not code.isdigit():
+    if len(code) != get_settings().totp_digits or not code.isdigit():
         return None
-    current = int((now if now is not None else time.time()) // PERIOD)
+    current = int((now if now is not None else time.time()) // get_settings().totp_period_seconds)
     for counter in range(current - window, current + window + 1):
         if hmac.compare_digest(code_at(secret, counter), code):
             return counter
     return None
 
 
-def otpauth_uri(secret: str, account: str, issuer: str = "Vaultessa") -> str:
+def otpauth_uri(secret: str, account: str, issuer: str | None = None) -> str:
+    issuer = issuer or get_settings().totp_issuer
     label = quote(f"{issuer}:{account}")
-    return f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}&algorithm=SHA1&digits={DIGITS}&period={PERIOD}"
+    return f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}&algorithm=SHA1&digits={get_settings().totp_digits}&period={get_settings().totp_period_seconds}"
 
 
-def new_recovery_codes(count: int = 10) -> list[str]:
+def new_recovery_codes(count: int | None = None) -> list[str]:
     """10-character codes (≈49 bits each), shown as xxxxx-xxxxx."""
     codes = []
-    for _ in range(count):
-        raw = "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(10))
+    for _ in range(count if count is not None else get_settings().recovery_code_count):
+        raw = "".join(secrets.choice(RECOVERY_CODE_ALPHABET) for _ in range(10))
         codes.append(f"{raw[:5]}-{raw[5:]}")
     return codes
 

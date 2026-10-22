@@ -1,6 +1,6 @@
 import pytest
 
-from app.modules.notifications import service as notify
+from app.services import notifications_service as notify
 
 from .helpers import create_secret, register, share
 
@@ -19,6 +19,8 @@ def outbox(monkeypatch):
 
 def test_new_device_sign_in_alert(api, outbox):
     alice = register(api, "alice")
+    assert outbox[-1]["subject"] == "Verify your Vaultessa email"
+    outbox.clear()
     # same browser that registered → no alert
     api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash})
     assert outbox == []
@@ -48,7 +50,7 @@ def test_sharing_emails_and_opt_out(api, outbox):
 
     # bob turns sharing emails off; the next change is silent
     prefs = api.put("/api/account/notifications", json={"sharing": False, "links": True}, headers=bob.headers)
-    assert prefs.json() == {"sharing": False, "links": True}
+    assert prefs.json() == {"sharing": False, "links": True, "expiry": True}
     before = len(outbox)
     api.patch(
         f"/api/secrets/{item['id']}/shares/{bob.id}", json={"permission": "MODIFY"}, headers=alice.headers

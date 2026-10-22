@@ -44,19 +44,19 @@ export function useFolders() {
   });
 }
 
-type SaveInput = { existing?: DecryptedItem; type: SecretType; data: SecretPayload; folderId: string | null };
+type SaveInput = { existing?: DecryptedItem; type: SecretType; data: SecretPayload; folderId: string | null; expiresAt?: string | null };
 
 export function useSaveSecret() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ existing, type, data, folderId }: SaveInput) => {
+    mutationFn: async ({ existing, type, data, folderId, expiresAt }: SaveInput) => {
       if (!existing) {
-        return secretsApi.create({ type, folderId, ...(await encryptNewSecret(data)) });
+        return secretsApi.create({ type, folderId, expiresAt, ...(await encryptNewSecret(data)) });
       }
       let item = existing as DecryptedItem | Awaited<ReturnType<typeof secretsApi.update>>;
-      if (JSON.stringify(existing.data) !== JSON.stringify(data)) {
+      if (JSON.stringify(existing.data) !== JSON.stringify(data) || (expiresAt !== undefined && expiresAt !== (existing.expiresAt ?? null))) {
         const encryptedData = await encryptExisting(existing, data);
-        item = await secretsApi.update(existing.id, { encryptedData, revision: existing.revision });
+        item = await secretsApi.update(existing.id, { encryptedData, revision: existing.revision, expiresAt });
       }
       if (folderId !== existing.folderId) item = await secretsApi.updateAccess(existing.id, { folderId });
       return item;
@@ -150,7 +150,12 @@ export function useShares(itemId: string) {
 
 export function useShareMutations(item: DecryptedItem) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: vaultKeys.shares(item.id) });
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: vaultKeys.shares(item.id) }),
+      // the list shows "Shared with N"
+      qc.invalidateQueries({ queryKey: vaultKeys.items }),
+    ]);
 
   return {
     grant: useMutation({

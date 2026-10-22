@@ -1,0 +1,9 @@
+{
+  "name": "@vaultessa/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": "./index.mjs",
+  "bin": { "vaultessa": "./cli.mjs" },
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test test.mjs" }
+}

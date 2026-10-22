@@ -10,9 +10,43 @@ export type Account = {
   protectedVaultKey: string;
   publicKey: string;
   protectedPrivateKey: string;
+  emailVerified: boolean;
 };
 
 export type LoginResponse = { accessToken: string; account: Account };
+export type MfaChallenge = {
+  mfaRequired: true;
+  mfaToken: string;
+  methods: Array<'totp' | 'sms' | 'recovery'>;
+  phone: string | null;
+};
+export type SecurityOverview = {
+  totpEnabled: boolean;
+  phone: string | null;
+  recoveryCodesLeft: number;
+  smsAvailable: boolean;
+  emailAvailable: boolean;
+};
+export type DeviceSession = {
+  id: string;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  current: boolean;
+};
+export type NotificationPrefs = { sharing: boolean; links: boolean; expiry: boolean };
+export type AccessToken = {
+  id: string;
+  name: string;
+  status: 'active' | 'expired' | 'revoked';
+  itemIds: string[];
+  ownerKey: string;
+  createdAt: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  lastUsedIp: string | null;
+};
 
 export type Prelogin = { kdf: 'PBKDF2_SHA256'; kdfIterations: number; kdfSalt: string };
 
@@ -45,8 +79,11 @@ export type VaultItem = {
   permission: Permission;
   folderId: string | null;
   favorite: boolean;
+  /** people besides the owner with access */
+  sharedWith: number;
   createdAt: string;
   updatedAt: string;
+  expiresAt?: string | null;
 };
 
 export type Folder = { id: string; encryptedName: string; createdAt: string; updatedAt: string };

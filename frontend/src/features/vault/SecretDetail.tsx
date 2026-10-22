@@ -26,7 +26,9 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/stores/session';
 import { ISSUE_COPY, type ItemHealth } from '../security/passwordHealth';
+import type { LinkInsight } from '../shares/hooks';
 import { ShareLinkDrawer } from '../shares/ShareLinkDrawer';
+import { SharingSummary } from './SharingFlags';
 import { useDeleteSecret, useHistory, useLeaveShare, useToggleFavorite } from './hooks';
 import { ItemAvatar } from './ItemAvatar';
 import { ShareUsersDrawer } from './ShareDialog';
@@ -37,16 +39,18 @@ type Props = {
   item: DecryptedItem;
   folderName: string | null;
   health?: ItemHealth;
+  links?: LinkInsight;
   onEdit: () => void;
   onClosed: () => void;
   onBack: () => void;
 };
 
-export function SecretDetail({ item, folderName, health, onEdit, onClosed, onBack }: Props) {
+export function SecretDetail({ item, folderName, health, links, onEdit, onClosed, onBack }: Props) {
   const userId = useSession((s) => s.account?.id);
   const copy = useClipboard();
   const [sharing, setSharing] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [linkRecipient, setLinkRecipient] = useState<string | undefined>();
   const [showHistory, setShowHistory] = useState(false);
   const toggleFavorite = useToggleFavorite();
   const remove = useDeleteSecret();
@@ -116,6 +120,9 @@ export function SecretDetail({ item, folderName, health, onEdit, onClosed, onBac
           </p>
         </div>
       )}
+
+      {item.isOwner && <SharingSummary item={item} links={links} />}
+      {item.expiresAt && <p className="border-b px-6 py-3 text-sm"><strong>{Date.parse(item.expiresAt) <= Date.now() ? 'Expired' : 'Expires'}</strong> {new Date(item.expiresAt).toLocaleString()}. {item.isOwner ? 'Expiry reminders follow your email preferences.' : 'The owner manages expiry reminders.'}</p>}
 
       {health && health.issues.length > 0 && (
         <ul className="grid gap-1 border-b bg-warning/10 px-6 py-3 text-sm">
@@ -187,8 +194,25 @@ export function SecretDetail({ item, folderName, health, onEdit, onClosed, onBac
 
       {canManage && (
         <>
-          <ShareUsersDrawer item={item} open={sharing} onOpenChange={setSharing} />
-          <ShareLinkDrawer item={item} open={linking} onOpenChange={setLinking} />
+          <ShareUsersDrawer
+            item={item}
+            open={sharing}
+            onOpenChange={setSharing}
+            onUseLink={(email) => {
+              setSharing(false);
+              setLinkRecipient(email);
+              setLinking(true);
+            }}
+          />
+          <ShareLinkDrawer
+            item={item}
+            open={linking}
+            initialRecipient={linkRecipient}
+            onOpenChange={(open) => {
+              setLinking(open);
+              if (!open) setLinkRecipient(undefined);
+            }}
+          />
         </>
       )}
     </Card>

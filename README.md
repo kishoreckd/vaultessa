@@ -1,7 +1,9 @@
 # Vaultessa
 
 A zero-knowledge password manager for individuals and teams, modelled on Zoho Vault.
-Formerly developed under the working name "Vaultessa".
+Formerly developed under the working name "PassVault".
+
+Current features, validation and remaining work: [project status](docs/12-current-status.md).
 
 > The server never sees your master password, your vault key, or any secret in plaintext.
 > All encryption and decryption happens in the client (browser / extension / mobile app).

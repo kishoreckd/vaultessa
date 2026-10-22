@@ -82,3 +82,39 @@ def test_register_rejects_weak_kdf_and_bad_ciphertext(api):
         "/api/auth/register", json={**base, "kdfIterations": 600_000, "protectedVaultKey": "raw-key"}
     )
     assert plain.status_code == 400
+
+
+def test_change_password_preserves_items_and_revokes_other_sessions(api):
+    from .helpers import ENC_2, create_secret
+
+    alice = register(api, "alice")
+    item = create_secret(api, alice)
+    other = api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash}).json()
+    other_headers = {"Authorization": f"Bearer {other['accessToken']}"}
+    body = {
+        "authHash": alice.auth_hash,
+        "newAuthHash": b64("new-client-derived-hash"),
+        "kdfSalt": b64("new-sixteen-salt"),
+        "kdfIterations": 600000,
+        "protectedVaultKey": ENC_2,
+    }
+    assert api.post("/api/account/password", json=body).status_code == 401
+    assert (
+        api.post(
+            "/api/account/password", json={**body, "authHash": b64("wrong")}, headers=alice.headers
+        ).status_code
+        == 401
+    )
+    changed = api.post("/api/account/password", json=body, headers=alice.headers)
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["protectedVaultKey"] == ENC_2
+    assert api.get("/api/secrets", headers=alice.headers).json()[0]["encryptedData"] == item["encryptedData"]
+    assert api.get("/api/secrets", headers=other_headers).status_code == 401
+    assert (
+        api.post("/api/auth/login", json={"email": alice.email, "authHash": alice.auth_hash}).status_code
+        == 401
+    )
+    assert (
+        api.post("/api/auth/login", json={"email": alice.email, "authHash": body["newAuthHash"]}).status_code
+        == 200
+    )

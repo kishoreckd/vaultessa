@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/lib/api/client';
 import { publicSharesApi } from '@/lib/api/endpoints';
 import type { PublicShareInfo } from '@/lib/api/types';
@@ -50,6 +51,7 @@ export function GuestSharePage() {
   const [openError, setOpenError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SharedSnapshot | null>(null);
   const [viewsLeft, setViewsLeft] = useState<number | null>(null);
+  const { formRef, errors, validate, clear } = useFormErrors<'code'>();
 
   useEffect(() => {
     document.title = 'Shared with you · Vaultessa';
@@ -62,8 +64,9 @@ export function GuestSharePage() {
   async function onOpen(event: FormEvent) {
     event.preventDefault();
     if (!info) return;
-    setOpening(true);
     setOpenError(null);
+    if (info.hasCode && !validate({ code: code.trim() ? null : `Enter the access code ${info.senderName} sent you.` })) return;
+    setOpening(true);
     try {
       const verifier = info.hasCode && info.codeSalt ? await accessCodeVerifier(code, info.codeSalt) : undefined;
       const result = await publicSharesApi.open(id, verifier);
@@ -148,7 +151,7 @@ export function GuestSharePage() {
             )}
           </CardDescription>
         </CardHeader>
-        <form onSubmit={onOpen}>
+        <form ref={formRef} onSubmit={onOpen} noValidate>
           <CardContent className="grid gap-4">
             {openError && (
               <Alert variant="destructive">
@@ -168,10 +171,24 @@ export function GuestSharePage() {
                   autoComplete="off"
                   placeholder="XXXX-XXXX"
                   className="font-mono tracking-widest uppercase"
+                  aria-invalid={errors.code ? true : undefined}
+                  aria-describedby={errors.code ? 'access-code-error' : 'access-code-hint'}
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    clear('code');
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">{info.senderName} sent you this code separately.</p>
+                {errors.code ? (
+                  <p id="access-code-error" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                    <CircleAlert className="size-3.5" />
+                    {errors.code}
+                  </p>
+                ) : (
+                  <p id="access-code-hint" className="text-xs text-muted-foreground">
+                    {info.senderName} sent you this code separately.
+                  </p>
+                )}
               </div>
             )}
             {oneTime && (

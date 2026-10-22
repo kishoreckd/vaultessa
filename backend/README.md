@@ -44,14 +44,22 @@ migration fails the suite. Override the target with `TEST_DATABASE_URL`.
 
 ```
 app/
-  main.py             create_app(): middleware, error handlers, routers under /api
-  config.py           pydantic-settings; secrets are required (fails closed)
-  database.py         engine, SessionLocal, Base, get_db
-  models.py           SQLAlchemy models + enums
-  core/               errors, security (scrypt/JWT), schema base types, auth dependency, rate limiting
-  modules/<feature>/  schemas.py (pydantic) → service.py (logic, no commit) → router.py (HTTP, audit, commit)
-migrations/           Alembic
-tests/                pytest; helpers.py has user/secret factories
+  main.py                    ASGI entry point only
+  core/application.py        application factory, lifecycle, middleware, router registration
+  core/                      configuration, auth dependencies, errors, security, rate limits
+  constants/                 vault enums, permission ranks, email theme and artwork mappings
+  db/session.py              engine, SessionLocal, Base, get_db
+  db/model_helpers.py        shared timestamp defaults
+  db/models/<name>_model.py   one SQLAlchemy model per file
+  api/<feature>.py           HTTP routes, audit, commit
+  services/                  business logic, notifications, email configuration and delivery
+  schemas/                   Pydantic request and response types
+  utils/templates/emails/    shared layout and purpose-specific HTML templates
+  static/email/              brand and contextual PNG illustrations
+  email_previews/            generated HTML gallery
+migrations/                  Alembic
+tests/                      pytest
+scripts/                     local email preview generator
 ```
 
 ## Conventions

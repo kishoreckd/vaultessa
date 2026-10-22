@@ -41,34 +41,28 @@ or change which encrypted blob, and records audit events. It cannot decrypt anyt
 ## 3. Folder structure
 
 ```
-backend/
-├── app/
-│   ├── main.py                  # create_app(): CORS, security headers, error handlers, routers under /api
-│   ├── config.py                # pydantic-settings; JWT/prelogin secrets are required
-│   ├── database.py              # engine, SessionLocal, Base, get_db
-│   ├── models.py                # SQLAlchemy models (see 04-data-model.md)
-│   ├── core/                    # cross-cutting: errors, security, schema types, deps (auth), rate_limit
-│   └── modules/<feature>/       # one package per bounded context
-│       ├── schemas.py           #   Pydantic request/response models
-│       ├── service.py           #   business logic + DB access + authorization (never commits)
-│       └── router.py            #   HTTP layer: validate, call service, audit, commit
-├── migrations/                  # Alembic env + versions
-└── tests/                       # pytest (conftest builds the test DB via migrations)
-
-frontend/
-├── src/
-│   ├── main.tsx / App.tsx       # bootstrap + router
-│   ├── lib/crypto/              # ALL cryptography (kdf, symmetric, asymmetric, generator)
-│   ├── lib/api/                 # typed fetch client per backend module
-│   ├── stores/session.ts        # in-memory session + CryptoKeys (never persisted)
-│   ├── features/<feature>/      # pages + feature components + hooks
-│   ├── components/              # shared UI primitives and layout
-│   └── hooks/                   # shared hooks (auto-lock, clipboard)
-└── test/
+app/
+  main.py                    ASGI entry point only
+  core/application.py        application factory, lifecycle, middleware, router registration
+  core/                      configuration, auth dependencies, errors, security, rate limits
+  constants/                 vault enums, permission ranks, email theme and artwork mappings
+  db/session.py              engine, SessionLocal, Base, get_db
+  db/model_helpers.py        shared timestamp defaults
+  db/models/<name>_model.py   one SQLAlchemy model per file
+  api/<feature>.py           HTTP routes, audit, commit
+  services/                  business logic, notifications, email configuration and delivery
+  schemas/                   Pydantic request and response types
+  utils/templates/emails/    shared layout and purpose-specific HTML templates
+  static/email/              brand and contextual PNG illustrations
+  email_previews/            generated HTML gallery
+migrations/                  Alembic
+tests/                      pytest
+scripts/                     local email preview generator
 ```
 
-**Module rule:** a feature package owns its router, schemas and service. Cross-module calls go through
-the other module's service (e.g. sharing uses `secrets.service.require_access`), never its router.
+Frontend features remain under `frontend/src/features/`, with shared crypto in `lib/crypto/`, API access in `lib/api/`, and shared UI in `components/`.
+
+**Layer rule:** HTTP handlers live in `api`, validation in `schemas`, and business logic in `services`. Cross-feature calls use services, never routers. Database mappings live in `db/models`; shared enums live in `constants/vault.py`. `main.py` only exposes the ASGI app.
 
 ## 4. Request lifecycle (backend)
 

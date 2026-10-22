@@ -5,3 +5,5 @@ export * from './asymmetric';
 export * from './generator';
 export * from './strength';
 export * from './send';
+export * from './token';
+export * from './recovery';

@@ -15,7 +15,7 @@ import {
   Vault,
   type LucideIcon,
 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { confirmAction } from '@/components/common/confirm-dialog';
 import { IconAction } from '@/components/common/icon-action';
@@ -31,12 +31,14 @@ import { useHotkeys } from '@/hooks/useHotkeys';
 import { SECRET_TYPES, type SecretType } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 import { analyzeHealth } from '../security/passwordHealth';
+import { summarizeLinks, useExternalShares } from '../shares/hooks';
 import { GettingStarted } from './GettingStarted';
 import { useAcceptPendingShares, useCreateFolder, useDeleteFolder, useFolders, useVaultItems } from './hooks';
 import { ItemAvatar } from './ItemAvatar';
 import { SecretDetail } from './SecretDetail';
 import { SecretEditorDrawer } from './SecretEditor';
 import { getField, TEMPLATES } from './secretTemplates';
+import { SharingFlags } from './SharingFlags';
 import { can, safeHref, type DecryptedItem } from './vaultTypes';
 
 type Filter =
@@ -93,6 +95,8 @@ export function VaultPage() {
 
   const all = useMemo(() => items.data ?? [], [items.data]);
   const health = useMemo(() => analyzeHealth(all), [all]);
+  const links = useExternalShares();
+  const linkInsights = useMemo(() => summarizeLinks(links.data), [links.data]);
   const visible = useMemo(
     () =>
       all
@@ -106,6 +110,21 @@ export function VaultPage() {
 
   const openNew = (type?: SecretType) =>
     setEditor({ open: true, type: type ?? (filter.kind === 'type' ? filter.type : 'LOGIN') });
+
+  // Deep link from other pages (e.g. Shared links): /?item=<id> opens that item, then cleans the URL.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedId = searchParams.get('item');
+  useEffect(() => {
+    if (!linkedId || !items.data) return;
+    if (all.some((i) => i.id === linkedId)) {
+      setFilter({ kind: 'all' });
+      setSearch('');
+      setSelectedId(linkedId);
+    } else {
+      toast.info('That item isn’t in your vault any more.');
+    }
+    setSearchParams({}, { replace: true });
+  }, [linkedId, items.data, all, setSearchParams]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-id="${selectedId}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -382,6 +401,7 @@ export function VaultPage() {
                           {subtitle(item)}
                         </span>
                       </span>
+                      <SharingFlags item={item} links={linkInsights.get(item.id)} />
                       {atRisk && (
                         <Badge variant="outline" className="hidden border-warning/50 text-warning sm:inline-flex">
                           <TriangleAlert /> At risk
@@ -424,6 +444,7 @@ export function VaultPage() {
             item={selected}
             folderName={folderName(selected.folderId)}
             health={health.byId.get(selected.id)}
+            links={linkInsights.get(selected.id)}
             onEdit={() => setEditor({ open: true, item: selected })}
             onClosed={() => setSelectedId(null)}
             onBack={() => setSelectedId(null)}

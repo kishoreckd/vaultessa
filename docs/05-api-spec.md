@@ -22,7 +22,7 @@ Codes: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 
 | --- | --- | --- | --- |
 | POST | `/auth/prelogin` *public* | `{ email }` | `{ kdf, kdfIterations, kdfSalt }` |
 | POST | `/auth/register` *public* | `{ email, name, authHash, kdfIterations, kdfSalt, protectedVaultKey🔒, publicKey, protectedPrivateKey🔒 }` | `201 LoginResponse` + refresh cookie |
-| POST | `/auth/login` *public* | `{ email, authHash }` | `LoginResponse` + refresh cookie |
+| POST | `/auth/login` *public* | `{ email, authHash }` | `LoginResponse` + refresh cookie, or `MfaChallenge` |
 | POST | `/auth/refresh` *cookie* | — | `{ accessToken }` + rotated cookie |
 | POST | `/auth/logout` *cookie* | — | `204`, cookie cleared |
 | GET | `/auth/me` | — | `Account` |
@@ -83,3 +83,64 @@ type VaultItem = {
 
 ## Versioning
 Breaking changes go to `/api/v2`. EncString version prefix (`v1.`) versions the crypto independently.
+
+
+## Account security and notifications (22 October 2026)
+
+All account routes require the current bearer session. Secrets below are client-derived
+proofs or ciphertext; master passwords never reach the server.
+
+| Method | Path | Body / response |
+| --- | --- | --- |
+| POST | `/auth/login/mfa` (public) | `{ mfaToken, method: "totp" / "sms" / "recovery", code?, firebaseIdToken? }` ? LoginResponse |
+| GET | `/account/security` | `{ totpEnabled, phone, recoveryCodesLeft, smsAvailable, emailAvailable }` |
+| POST | `/account/mfa/totp/setup` | `{ secret, otpauthUri }`; pending seed sealed at rest |
+| POST | `/account/mfa/totp/enable` | `{ code }` ? `{ recoveryCodes }`, shown once |
+| POST | `/account/mfa/sms/enable` | `{ firebaseIdToken }` ? `{ recoveryCodes }` |
+| POST | `/account/mfa/disable` | `{ method, authHash }` ? 204 |
+| POST | `/account/mfa/recovery-codes` | `{ authHash }` ? `{ recoveryCodes }`; invalidates old codes |
+| POST | `/account/password` | `{ authHash, newAuthHash, kdfSalt, kdfIterations, protectedVaultKey }` ? Account; revokes other sessions |
+| GET | `/account/sessions` | `[{ id, ip, userAgent, createdAt, lastUsedAt, current }]` |
+| DELETE | `/account/sessions/:id` | 204; own sessions only, current session excluded |
+| POST | `/account/sessions/revoke-others` | `{ revoked }` |
+| GET / PUT | `/account/notifications` | `{ sharing, links }`; security alerts always enabled |
+
+`MfaChallenge = { mfaRequired: true, mfaToken, methods, phone }` creates no session.
+Challenge expires after five minutes and is invalidated by a master-password change.
+Account also includes `totpEnabled` and `mfaPhone`.
+
+## Sharing insights and link limits
+
+Vault-item responses include `sharedWith`, the count of people other than the owner
+with access. `GET /external-shares` provides `secretId`, `status`, `viewCount`,
+`maxViews`, `lastViewedAt`, `expiresAt`, `recipientEmail`, `outsideDomain`, `hasCode`
+and the owner's encrypted `ownerKey` (plus creation/email metadata).
+
+`PATCH /external-shares/:id/limits { expiresAt, maxViews }` changes an active link
+without resetting usage. Owner plus current MANAGE access required. Limit is null
+(unlimited) or 1?100 and must exceed views already used. Expiry is future, at most
+90 days away. Used/revoked/expired/locked links must use the existing re-open flow.
+
+`GET /audit?linkId=<uuid>&limit=50&cursor=<uuid>` filters the caller's own audit rows
+by link ID. It preserves cursor pagination and never exposes another user's log.
+
+## Developer tokens
+
+| Method | Path | Body / response |
+| --- | --- | --- |
+| GET | `/tokens` | Own token metadata, item IDs and encrypted ownerKey |
+| POST | `/tokens` | `{ name, authKey, ownerKey, expiresAt?, grants: [{ secretId, wrappedKey }] }` ? 201 token |
+| PUT | `/tokens/:id/grants` | `{ grants }` replaces active token grants |
+| DELETE | `/tokens/:id` | 204, immediately revokes token |
+| GET | `/machine/secrets` | Machine bearer ? `[{ id, type, encryptedData, wrappedKey, revision, updatedAt }]` |
+
+The UI-issued token is `pvm.<id>.<base64 root>`. SDKs derive independent HKDF auth
+and encryption keys. The machine bearer substitutes the derived auth key for the
+root. The server stores only SHA-256 of that auth key, rechecks creator access on
+every read, and excludes LOGIN_ONLY grants. See `packages/README.md`.
+
+
+## Welcome, verification and vault recovery
+
+Implemented endpoints, requests, expiry/replay semantics and the new `Account.emailVerified`
+field are documented in [13-email-verification-and-recovery.md](13-email-verification-and-recovery.md).

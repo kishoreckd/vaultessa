@@ -15,6 +15,7 @@ function item(id: string, password: string | undefined, opts: { updatedAt?: stri
     ownerId: 'o',
     owner: { id: 'o', name: 'Owner', email: 'o@example.com' },
     isOwner: true,
+    sharedWith: 0,
     wrappedKey: '',
     keyWrap: 'VAULT',
     permission: opts.permission ?? 'MANAGE',

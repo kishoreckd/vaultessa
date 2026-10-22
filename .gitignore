@@ -18,3 +18,4 @@ coverage/
 !.vscode/extensions.json
 .claude/
 CLAUDE.md
+session memory/

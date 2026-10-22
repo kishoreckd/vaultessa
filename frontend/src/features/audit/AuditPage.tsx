@@ -56,6 +56,8 @@ const EVENTS: Record<string, { text: string; icon: LucideIcon; group: Group; dan
   EXTERNAL_SHARE_EMAIL: { text: 'Emailed a share link for', icon: Mail, group: 'sharing' },
   EXTERNAL_SHARE_VIEW: { text: 'Your share link was opened for', icon: Eye, group: 'sharing' },
   EXTERNAL_SHARE_REVOKE: { text: 'Revoked a share link for', icon: Ban, group: 'sharing' },
+  EXTERNAL_SHARE_REOPEN: { text: 'Re-opened a share link for', icon: Link2, group: 'sharing' },
+  EXTERNAL_SHARE_LIMITS_UPDATE: { text: 'Updated share link limits for', icon: Link2, group: 'sharing' },
   EXTERNAL_SHARE_LOCKED: { text: 'Share link locked after wrong access codes for', icon: ShieldAlert, group: 'sharing', danger: true },
 };
 

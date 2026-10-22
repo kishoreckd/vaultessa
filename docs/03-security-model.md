@@ -117,7 +117,16 @@ lets us migrate algorithms without ambiguity.
 
 ## 7. Master password changes & recovery
 
-- **Change master password (P1):** client derives new `KEK`, re-wraps the same `vaultKey`, sends new
-  `authHash` + `protectedVaultKey` atomically; all other sessions are revoked.
-- **Forgot master password:** data is unrecoverable by design. Options: emergency access (P4) or an
-  opt-in organisation recovery key (P4). Communicate this clearly at sign-up.
+- **Change master password:** the browser derives a fresh KEK and re-wraps the same
+  vault key. The server atomically verifies the old proof, updates the protected key
+  and KDF settings, cancels pending reset links, and revokes other sessions.
+- **Forgot master password:** opt-in vault recovery requires a previously saved
+  client-generated recovery key and a single-use email link to a verified address.
+  HKDF splits recovery authentication and encryption keys; the server stores only
+  a scrypt proof hash and the client-encrypted recovery envelope. An email link
+  alone cannot decrypt the vault. Recovery preserves MFA, consumes its recovery
+  key, revokes all sessions and developer tokens, and requires a normal sign-in.
+- **Without prior recovery setup/key:** existing encrypted data cannot be recovered.
+  Organisation recovery and emergency access remain future features.
+
+Flow, endpoints and threat boundaries: [13-email-verification-and-recovery.md](13-email-verification-and-recovery.md).

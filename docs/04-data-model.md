@@ -1,6 +1,6 @@
 # 04 — Data Model
 
-Source of truth: [backend/app/models.py](../backend/app/models.py) (SQLAlchemy) and the Alembic
+Source of truth: [backend/app/db/models/](../backend/app/db/models/) (SQLAlchemy) and the Alembic
 migrations in [backend/migrations/versions](../backend/migrations/versions).
 Field names below are as seen on the API (camelCase); database columns and tables are snake_case
 (`kdfIterations` → `kdf_iterations`, `SecretAccess` → `secret_accesses`, `Session` → `sessions`).
@@ -107,3 +107,14 @@ One user account can have a personal vault and belong to an organisation.
 - `SecretAccess(userId)` — vault list query.
 - `AuditLog(userId, createdAt desc)` — audit page pagination.
 - `Session(tokenHash)` unique — refresh lookup.
+
+
+## Email verification and optional vault recovery (22 October 2026)
+
+Migration `01176535d83b` adds to `users`: `email_verified` (false for existing rows),
+`email_verification_hash` (indexed), expiry/sent timestamps, `recovery_auth_hash`
+(scrypt of client-derived proof), `recovery_wrapped_vault_key` (client ciphertext),
+`password_reset_hash` (indexed), expiry/sent timestamps and attempt counter.
+Raw email tokens, recovery keys, unwrapped vault keys and master passwords are not
+stored. Successful recovery clears its key/envelope and reset token, deletes all
+sessions and revokes API tokens/grants without changing item ciphertext or MFA.

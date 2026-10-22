@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type FormEvent } from 'react';
-import { Check, CircleCheck, Copy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Check, CircleAlert, CircleCheck, Copy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
 import { TextareaField, TextField } from '@/components/common/form-field';
@@ -14,9 +14,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useClipboard } from '@/hooks/useClipboard';
+import { useFormErrors } from '@/hooks/useFormErrors';
 import type { ExternalShare } from '@/lib/api/types';
 import { generateAccessCode } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
+import { emailError } from '@/lib/validation';
 import { useSession } from '@/stores/session';
 import { relativeTime, type DecryptedItem } from '../vault/vaultTypes';
 import {
@@ -38,10 +40,13 @@ export function ShareLinkDrawer({
   item,
   open,
   onOpenChange,
+  initialRecipient,
 }: {
   item: DecryptedItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** prefill the recipient (e.g. coming from "Share" when the person has no account) */
+  initialRecipient?: string;
 }) {
   const [created, setCreated] = useState<Created | null>(null);
   const [formKey, setFormKey] = useState(0);
@@ -92,21 +97,37 @@ export function ShareLinkDrawer({
         (created ? (
           <CreatedView created={created} />
         ) : (
-          <ShareLinkForm key={formKey} formId={formId} item={item} onCreated={setCreated} />
+          <ShareLinkForm
+            key={`${formKey}-${initialRecipient ?? ''}`}
+            formId={formId}
+            item={item}
+            initialRecipient={initialRecipient}
+            onCreated={setCreated}
+          />
         ))}
       {open && !created && <ExistingLinks item={item} />}
     </Drawer>
   );
 }
 
-function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: DecryptedItem; onCreated: (c: Created) => void }) {
+function ShareLinkForm({
+  formId,
+  item,
+  initialRecipient,
+  onCreated,
+}: {
+  formId: string;
+  item: DecryptedItem;
+  initialRecipient?: string;
+  onCreated: (c: Created) => void;
+}) {
   const account = useSession((s) => s.account);
   const createLink = useCreateShareLink();
   const fields = useMemo(() => shareableFields(item), [item]);
   const ackId = useId();
   const codeId = useId();
 
-  const [recipient, setRecipient] = useState('');
+  const [recipient, setRecipient] = useState(initialRecipient ?? '');
   const [timing, setTiming] = useState<LinkTimingValue>(DEFAULT_TIMING);
   const [useCode, setUseCode] = useState(true);
   const [code, setCode] = useState(generateAccessCode);
@@ -114,6 +135,7 @@ function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: Decr
   const [message, setMessage] = useState('');
   const [outsideAck, setOutsideAck] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const { formRef, errors, validate, clear } = useFormErrors<'recipient' | 'code'>();
 
   const myDomain = emailDomain(account?.email);
   const theirDomain = emailDomain(recipient.trim());
@@ -123,9 +145,13 @@ function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: Decr
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
-    if (fieldKeys.length === 0) return setFormError('Choose at least one field to share.');
+    const ok = validate({
+      recipient: emailError(recipient, { optional: true }),
+      code: useCode && code.replace(/[\s-]/g, '').length < 6 ? 'Use an access code of at least 6 characters.' : null,
+    });
+    if (!ok) return;
     if (outside && !outsideAck) return setFormError('Confirm that you want to share outside your organisation.');
-    if (useCode && code.replace(/[\s-]/g, '').length < 6) return setFormError('Use an access code of at least 6 characters.');
+    if (fieldKeys.length === 0) return setFormError('Choose at least one field to share.');
 
     const result = await createLink.mutateAsync({
       item,
@@ -146,7 +172,7 @@ function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: Decr
   }
 
   return (
-    <form id={formId} onSubmit={onSubmit} className="grid gap-6">
+    <form id={formId} ref={formRef} onSubmit={onSubmit} noValidate className="grid gap-6">
       {formError && (
         <Alert variant="destructive">
           <ShieldAlert />
@@ -161,9 +187,11 @@ function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: Decr
           placeholder="name@company.com"
           hint="Used to label the link and, if you choose, to email it."
           value={recipient}
+          error={errors.recipient}
           onChange={(e) => {
             setRecipient(e.target.value);
             setOutsideAck(false);
+            clear('recipient');
           }}
         />
         {outside && (
@@ -201,17 +229,38 @@ function ShareLinkForm({ formId, item, onCreated }: { formId: string; item: Decr
           <Switch id={codeId} checked={useCode} onCheckedChange={setUseCode} />
         </div>
         {useCode && (
-          <div className="flex items-center gap-2">
-            <Input
-              aria-label="Access code"
-              className="font-mono tracking-widest uppercase"
-              value={code}
-              maxLength={32}
-              onChange={(e) => setCode(e.target.value)}
-            />
-            <IconAction label="New random code" variant="outline" size="icon" onClick={() => setCode(generateAccessCode())}>
-              <RefreshCw />
-            </IconAction>
+          <div className="grid gap-1.5">
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="Access code"
+                aria-invalid={errors.code ? true : undefined}
+                aria-describedby={errors.code ? `${codeId}-error` : undefined}
+                className="font-mono tracking-widest uppercase"
+                value={code}
+                maxLength={32}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  clear('code');
+                }}
+              />
+              <IconAction
+                label="New random code"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  setCode(generateAccessCode());
+                  clear('code');
+                }}
+              >
+                <RefreshCw />
+              </IconAction>
+            </div>
+            {errors.code && (
+              <p id={`${codeId}-error`} className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <CircleAlert className="size-3.5" />
+                {errors.code}
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -318,13 +367,13 @@ function CreatedView({ created }: { created: Created }) {
               onClick={async () => {
                 await emailLink.mutateAsync({ id: share.id, link });
                 setEmailed(true);
-                toast.success(`Link emailed to ${recipient}`, {
-                  description: code ? 'Remember to send the access code separately.' : undefined,
+                toast.success(`Email accepted for ${recipient}`, {
+                  description: code ? 'Send the access code separately. Inbox delivery is not yet confirmed.' : 'The mail server accepted it. Inbox delivery is not yet confirmed.',
                 });
               }}
             >
               {emailLink.isPending ? <LoaderCircle className="animate-spin" /> : emailed ? <Check /> : <Mail />}
-              {emailed ? 'Emailed' : `Email link to ${recipient}`}
+              {emailed ? 'Accepted by mail server' : `Email link to ${recipient}`}
             </Button>
           )}
           <Button variant="outline" asChild>
