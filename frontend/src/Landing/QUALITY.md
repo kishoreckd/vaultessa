@@ -43,7 +43,7 @@ the hero loads with high priority. The page uses locally hosted Geist fonts.
   authentication API latency and browser key derivation separately.
 - Do not automatically retry registration or login POSTs: retries can cause
   duplicate side effects or distort rate limits.
-- Analytics stays optional and public-page-only. Never send form values, emails,
+- Analytics stays optional and uses explicit app-wide consent; see `src/analytics/README.md`. Never send form values, emails,
   passwords, share identifiers, recovery material or full URLs to monitoring.
   GA4 is not an availability monitor. Firebase initialization is not an SMS test.
 - Backend `/api/health` reports database readiness; email/Firebase configuration

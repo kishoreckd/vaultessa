@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { queryClient } from '@/lib/queryClient';
 import { App } from './App';
+import { Analytics } from './analytics/Analytics';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
           <BrowserRouter>
+            <Analytics />
             <App />
           </BrowserRouter>
           <Toaster position="top-right" offset={{ top: 72, right: 24 }} mobileOffset={{ top: 64 }} richColors closeButton />

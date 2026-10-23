@@ -16,15 +16,12 @@ Public configuration keys are listed in `frontend/.env.example` and
 the frontend Vercel project's environment settings for production, then rebuild.
 No actual IDs or project credentials have been invented or supplied.
 
-- `VITE_GA_MEASUREMENT_ID`: GA4 web stream ID (`G-...`). Analytics starts only after
-  accepting the optional analytics prompt. It sends an allowlisted public page URL and
-  signup-button placement, without query parameters, fragments, or user identifiers.
-  Turn **Enhanced Measurement off** in the GA4 web stream settings, including
-  history changes, forms, and outbound clicks. This prevents Google's automatic
-  collection from supplementing the deliberately limited events. When analytics
-  has loaded, leaving the public marketing pages reloads the destination document to
-  remove third-party scripts before authentication or vault use. Privacy
-  preferences can be reopened from the footer.
+- `VITE_GA_MEASUREMENT_ID`: GA4 web stream ID (`G-...`). App-wide consent-based
+  analytics is centralized in `src/analytics`, covering sanitized page views,
+  control clicks and form submissions. See [the event contract](../analytics/README.md)
+  for privacy rules and required GA4 console settings. Disable Enhanced Measurement
+  to prevent duplicate or automatic sensitive collection. Prior public-only consent
+  is not reused for this expanded scope.
 - `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
   `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`,
   `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`:
@@ -63,7 +60,8 @@ landscape, no text, headings, screenshot, or watermark. Individual scenes:
 - How it works: three adults creating an account, organising passwords beside a
   vault, and placing a recovery key card into an envelope.
 
-In GA4, compare the `page_view` event by page location for the four public paths.
-The `landing_signup_click` event includes the page location and CTA placement.
-Tracking remains inactive until the real measurement ID is configured and consent
-is given. Authenticated/private paths are excluded by the public-page allowlist.
+In GA4, compare `page_view` by sanitized page location and `ui_click` by action
+and control type. `signup_cta_click` includes a fixed CTA placement. This covers
+app routes as well as marketing pages after fresh app-wide consent; share IDs,
+query strings and fragments are excluded. The central event contract is the source
+of truth for current tracking behavior.
