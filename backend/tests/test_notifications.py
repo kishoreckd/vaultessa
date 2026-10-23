@@ -1,6 +1,7 @@
 import pytest
 
 from app.services import notifications_service as notify
+from app.services.email_service import EmailDeliveryResult
 
 from .helpers import create_secret, register, response_data, share
 
@@ -12,7 +13,8 @@ def outbox(monkeypatch):
     monkeypatch.setattr(
         notify,
         "send_email",
-        lambda to, subject, text, html=None: sent.append({"to": to, "subject": subject, "text": text}),
+        lambda to, subject, text, html=None: sent.append({"to": to, "subject": subject, "text": text})
+        or EmailDeliveryResult("accepted", "Accepted by test sender"),
     )
     return sent
 

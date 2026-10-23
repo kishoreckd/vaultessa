@@ -71,8 +71,10 @@ def deliver(outbox_id: uuid.UUID, sender: Sender = send_email, now: datetime | N
             payload = json.loads(unseal(row.payload_enc or ""))
             result = sender(row.to_address, payload["subject"], payload["text"], payload["html"])
             row.attempts += 1
-            # Test doubles may return None; treat that as accepted.
-            if result is None or result.status == "accepted":
+            if result is None:
+                result = EmailDeliveryResult("failed", "The email sender did not confirm SMTP acceptance.")
+                logger.warning("Email sender returned no delivery result; treating the attempt as failed")
+            if result.status == "accepted":
                 row.sent_at = now
                 _finish(row, "sent")
             elif row.attempts >= get_settings().email_outbox_max_attempts:

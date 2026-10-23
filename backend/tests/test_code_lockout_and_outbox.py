@@ -22,7 +22,10 @@ def mail(monkeypatch):
     monkeypatch.setattr(
         notify,
         "send_email",
-        lambda to, subject, text, html=None: messages.append({"to": to, "subject": subject, "text": text}),
+        lambda to, subject, text, html=None: (
+            messages.append({"to": to, "subject": subject, "text": text})
+            or EmailDeliveryResult("accepted", "Accepted by test sender")
+        ),
     )
     return messages
 
@@ -79,13 +82,37 @@ def test_failed_email_is_kept_and_retried_until_sent(api):
     assert outbox.deliver(outbox_id, failed) == "pending"
     sent: list[str] = []
     later = datetime.now(UTC) + timedelta(hours=1)
-    counts = outbox.run_once(later, lambda to, *args: sent.append(to))
+    counts = outbox.run_once(
+        later, lambda to, *args: sent.append(to) or EmailDeliveryResult("accepted", "Accepted by test sender")
+    )
 
     assert counts == {"sent": 1} and sent == ["bob@example.com"]
     with SessionLocal() as db:
         row = db.scalar(select(EmailOutbox).where(EmailOutbox.id == outbox_id))
         assert row.status == "sent" and row.attempts == 2
         assert row.payload_enc is None  # content wiped once delivered
+
+
+def test_missing_delivery_result_is_retried_then_fails_at_the_attempt_limit(api):
+    outbox_id = outbox.enqueue("bob@example.com", "Hello", "Body", None, "security")
+    now = datetime.now(UTC)
+    missing_result = lambda *args: None  # noqa: E731
+    assert outbox.deliver(outbox_id, missing_result, now) == "pending"
+    with SessionLocal() as db:
+        row = db.get(EmailOutbox, outbox_id)
+        assert row.sent_at is None
+        assert row.payload_enc is not None
+        assert row.attempts == 1
+        assert row.next_attempt_at == now + timedelta(minutes=1)
+        assert "did not confirm SMTP acceptance" in row.last_error
+        row.attempts = get_settings().email_outbox_max_attempts - 1
+        db.commit()
+    assert outbox.deliver(outbox_id, missing_result, now + timedelta(minutes=1)) == "failed"
+    with SessionLocal() as db:
+        row = db.get(EmailOutbox, outbox_id)
+        assert row.sent_at is None
+        assert row.payload_enc is None
+        assert row.attempts == get_settings().email_outbox_max_attempts
 
 
 def test_stale_code_email_is_not_sent_late(api):

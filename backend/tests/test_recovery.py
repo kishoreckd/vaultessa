@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.db.models.user_model import User
 from app.db.session import SessionLocal
 from app.services import notifications_service as notify
+from app.services.email_service import EmailDeliveryResult
 
 from .helpers import ENC, ENC_2, b64, create_secret, register, response_data
 
@@ -43,7 +44,8 @@ def mail(monkeypatch):
                 "html": html,
                 "legacy_token": issued.get((to, subject)),
             }
-        ),
+        )
+        or EmailDeliveryResult("accepted", "Accepted by test sender"),
     )
     return messages
 
