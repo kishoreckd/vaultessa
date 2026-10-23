@@ -1,5 +1,5 @@
 import { CodeXml, CreditCard, IdCard, KeyRound, Landmark, Server, SquareTerminal, StickyNote, Wifi, type LucideIcon } from 'lucide-react';
-import type { SecretType } from '../../lib/api/types';
+import { type SecretType } from '@/api/vault/types';
 import { dateError, emailError, portError } from '../../lib/validation';
 import type { SecretPayload } from './vaultTypes';
 

@@ -14,9 +14,11 @@ import {
   wrapVaultForRecovery,
   unwrapVaultForRecovery,
 } from '../../lib/crypto';
-import { refreshAccessToken, setAccessToken } from '../../lib/api/client';
-import { authApi, accountApi, recoveryApi } from '../../lib/api/endpoints';
-import type { Account, MfaChallenge } from '../../lib/api/types';
+import { refreshAccessToken, setAccessToken } from '@/api/client';
+import { authApi } from '@/api/auth/api';
+import { accountApi } from '@/api/account/api';
+import { recoveryApi } from '@/api/recovery/api';
+import { type Account, type MfaChallenge } from '@/api/auth/types';
 import { useSession, type VaultKeys } from '../../stores/session';
 
 // Orchestrates the key hierarchy from docs/03-security-model.md. Pages call these; they never touch keys.

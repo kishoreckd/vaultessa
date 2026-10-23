@@ -13,6 +13,7 @@ from app.schemas.account import (
     NotificationPrefsRequest,
     ReauthRequest,
     RecoveryCodes,
+    RevokeSessionsResponse,
     SecurityOverview,
     SessionOut,
     SmsEnableRequest,
@@ -134,7 +135,7 @@ def revoke_session(session_id: uuid.UUID, request: Request, auth: Auth, db: DbSe
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/sessions/revoke-others", response_model=dict)
+@router.post("/sessions/revoke-others", response_model=RevokeSessionsResponse)
 def revoke_others(request: Request, auth: Auth, db: DbSession):
     count = service.revoke_other_sessions(db, auth.user_id, auth.session_id)
     record(db, request, AuditAction.SESSION_REVOKE, user_id=auth.user_id, details={"others": count})

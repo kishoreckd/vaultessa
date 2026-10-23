@@ -49,13 +49,16 @@ Do not regenerate secrets on every start. `SMTP_PASSWORD` is a Brevo SMTP key;
 Leave `MAILPIT_BASE_URL` empty in production.
 
 ## 3. Vercel (frontend)
-1. Edit `frontend/vercel.json`: replace `YOUR-RAILWAY-SERVICE.up.railway.app` with the Railway domain, commit and push.
+1. In the frontend hosting environment, set `BACKEND_URL=https://vaultessa-backend.vercel.app`
+   (or your actual backend origin) and `VITE_API_BASE_PATH=/api`. `frontend/vercel.ts`
+   reads `BACKEND_URL` to configure the proxy. No backend hostname is stored in JSON.
 2. Vercel → **Add New Project** → import the repo → **Root Directory = `frontend`** (framework: Vite).
 3. Deploy. Then set `APP_BASE_URL` / `CORS_ORIGINS` on Railway to the final Vercel (or custom) domain.
 4. Firebase (when enabled): add the Vercel domain under Authentication → Settings → Authorized domains.
 
 ## Production behaviour (automatic when `ENVIRONMENT=production`)
-- API docs (`/api/docs`) are hidden, cookies are `Secure`, HSTS is sent.
+- API docs are disabled by default. With `ENABLE_API_DOCS=true`, both `/api/docs`
+  and `/api/openapi.json` require the dedicated Swagger username/password. Cookies are `Secure`, HSTS is sent.
 - Real client IPs are taken from `X-Forwarded-For` (uvicorn `--proxy-headers`) for rate limits and the activity log.
 - Rate limiting is in-memory per container: keep **one replica** until Redis-backed limits land.
 
@@ -74,5 +77,39 @@ intentionally unavailable when using a remote SMTP server.
 
 After deploying, run migrations and verify `/api/health`, signup code delivery, verification,
 and a sign-in/refresh cycle. Deploy frontend and backend together because JSON responses
-now use `{ status, message, data }`. The current `frontend/vercel.json` backend hostname is
-still a placeholder: replace it with the actual deployed backend domain before deployment.
+now use `{ status, message, data }`. The frontend deployment requires `BACKEND_URL` to be a public HTTPS origin with no `/api`
+path. Change it in hosting variables and redeploy; the `/api` suffix is added automatically.
+
+## Password-protected Swagger in production
+
+Keep `ENVIRONMENT=production` and set these **backend-only** hosting variables:
+
+```dotenv
+ENABLE_API_DOCS=true
+SWAGGER_USERNAME=vaultessa_admin
+SWAGGER_PASSWORD=<a-long-random-password>
+```
+
+A generated password is stored in the private `backend/.env.production`; copy it to
+backend hosting variables without committing it. The public examples leave it blank.
+Startup rejects enabled docs with missing credentials, a colon in the username, or a
+password shorter than 16 ASCII characters. Generate a random password of 24+ characters.
+Restart/redeploy after changing settings. The browser challenges for credentials at
+`https://vaultessa-backend.vercel.app/api/docs`; its schema URL is protected too.
+Serve this over HTTPS. Swagger credentials do not authorize vault API calls; use
+Swagger's Authorize button with the normal app bearer token for those endpoints.
+Protected docs use the existing per-IP authentication rate limit, which remains
+per-process and does not provide a shared limit across serverless instances.
+Setting `ENABLE_API_DOCS=false` disables production documentation. Development/test
+retain the existing public docs unless protection is explicitly enabled.
+
+## Frontend URL settings in environment variables
+
+The frontend uses Vercel programmatic configuration (`frontend/vercel.ts`) instead
+of a static `vercel.json`. Set `BACKEND_URL` in the frontend deployment environment.
+The value is server/build-only, with no `VITE_` prefix. Browser requests remain
+relative to `/api`, and the deployment rewrite forwards them to `BACKEND_URL/api`.
+The Vite dev proxy also reads `BACKEND_URL` from `.env.local`; local uses HTTP on
+127.0.0.1 while the deployment configuration requires a public HTTPS origin.
+Use `frontend/.env.production.example` as the import reference. Changing hosting
+variables takes effect after redeployment. Swagger credentials remain backend-only.

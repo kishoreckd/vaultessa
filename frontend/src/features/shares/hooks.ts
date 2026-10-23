@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { externalSharesApi } from '@/lib/api/endpoints';
-import type { ExternalShare } from '@/lib/api/types';
+import { externalSharesApi } from '@/api/sharing/api';
+import { type ExternalShare } from '@/api/sharing/types';
 import { decryptJson, encryptJson, sealSend } from '@/lib/crypto';
 import { requireKeys } from '@/stores/session';
 import { getField, TEMPLATES } from '../vault/secretTemplates';

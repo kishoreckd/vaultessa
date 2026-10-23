@@ -10,7 +10,7 @@ import {
 } from '../src/features/auth/RecoveryPages';
 import { remainingSeconds } from '../src/features/auth/useEmailCooldown';
 import { useSession } from '../src/stores/session';
-import type { Account } from '../src/lib/api/types';
+import { type Account } from '../src/api/auth/types';
 
 afterEach(() => vi.restoreAllMocks());
 vi.mock('../src/stores/session', () => ({ useSession: vi.fn(() => null) }));

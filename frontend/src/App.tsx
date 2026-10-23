@@ -12,7 +12,7 @@ import { SecurityPage } from '@/features/security/SecurityPage';
 import { GuestSharePage } from '@/features/shares/GuestSharePage';
 import { SharedLinksPage } from '@/features/shares/SharedLinksPage';
 import { VaultPage } from '@/features/vault/VaultPage';
-import { setAccessToken, setUnauthorizedHandler } from '@/lib/api/client';
+import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { authDestination } from '@/lib/auth-destination';
 import { useSession } from '@/stores/session';
 

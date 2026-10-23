@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     app_name: str = "Vaultessa API"
     app_version: str = "0.1.0"
     environment: Literal["development", "test", "production"] = "development"
+    # Explicitly enable password-protected docs, including in production.
+    enable_api_docs: bool = False
+    swagger_username: str | None = None
+    swagger_password: str | None = Field(default=None, repr=False)
     database_url: str = Field(min_length=1)
 
     # No defaults on purpose: the app fails closed if secrets are missing.
@@ -124,6 +128,23 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_deployment_urls(self) -> "Settings":
+        if self.enable_api_docs:
+            if (
+                not self.swagger_username
+                or not self.swagger_username.strip()
+                or not self.swagger_username.isascii()
+                or ":" in self.swagger_username
+            ):
+                raise ValueError("SWAGGER_USERNAME must be non-empty ASCII without a colon")
+            if (
+                not self.swagger_password
+                or not self.swagger_password.strip()
+                or not self.swagger_password.isascii()
+                or not 16 <= len(self.swagger_password) <= 1024
+            ):
+                raise ValueError(
+                    "SWAGGER_PASSWORD must contain 16 to 1024 ASCII characters when API docs are enabled"
+                )
         if self.scrypt_n & (self.scrypt_n - 1):
             raise ValueError("SCRYPT_N must be a power of two")
         if self.scrypt_maxmem <= 128 * self.scrypt_n * self.scrypt_r + 256 * self.scrypt_r * self.scrypt_p:

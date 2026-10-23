@@ -73,3 +73,7 @@ class NotificationPrefsRequest(RequestModel):
     sharing: bool
     links: bool
     expiry: bool = True
+
+
+class RevokeSessionsResponse(ApiModel):
+    revoked: int

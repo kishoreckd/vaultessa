@@ -8,7 +8,7 @@ description: How to add a page, feature, component or API hook to the Vaultessa 
 ## Layout
 ```
 frontend/src/
-  lib/api/<module>.ts       typed calls to the backend (uses apiFetch from client.ts)
+  api/<feature>/api.ts (contracts in types.ts)       typed calls to the backend (uses apiFetch from client.ts)
   lib/crypto/               all crypto — never call crypto.subtle elsewhere
   stores/session.ts         in-memory keys + account; lock() wipes everything
   features/<feature>/       pages, feature components, hooks
@@ -16,7 +16,7 @@ frontend/src/
 ```
 
 ## Steps
-1. **API** — add functions + types in `lib/api/<module>.ts`. Types mirror `docs/05-api-spec.md`.
+1. **API** — add functions + types in `api/<feature>/api.ts (contracts in types.ts)`. Types mirror `docs/05-api-spec.md`.
 2. **Hook** — wrap in TanStack Query (`useQuery` / `useMutation`) inside the feature folder.
    Decrypt inside the `queryFn` or a `select`, using keys from `useSession.getState()`.
    Invalidate the relevant query keys on mutation success.

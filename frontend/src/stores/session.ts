@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Account } from '../lib/api/types';
+import { type Account } from '@/api/auth/types';
 import { queryClient } from '../lib/queryClient';
 
 export type VaultKeys = {

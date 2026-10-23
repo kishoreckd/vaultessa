@@ -12,9 +12,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFormErrors } from '@/hooks/useFormErrors';
-import { ApiError } from '@/lib/api/client';
-import { publicSharesApi } from '@/lib/api/endpoints';
-import type { PublicShareInfo } from '@/lib/api/types';
+import { ApiError } from '@/api/client';
+import { publicSharesApi } from '@/api/sharing/api';
+import { type PublicShareInfo } from '@/api/sharing/types';
 import { accessCodeVerifier, openSend } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 import { relativeTime } from '../vault/vaultTypes';

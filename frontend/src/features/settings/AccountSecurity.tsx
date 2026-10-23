@@ -9,7 +9,7 @@ import { confirmAction } from '@/components/common/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { accountApi } from '@/lib/api/endpoints';
+import { accountApi } from '@/api/account/api';
 import { deriveAuthHash, deriveMasterKey } from '@/lib/crypto';
 import { useSession } from '@/stores/session';
 import { useClipboard } from '@/hooks/useClipboard';

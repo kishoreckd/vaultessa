@@ -25,7 +25,7 @@ Port 8010 (not FastAPI's usual 8000) lets Vaultessa run alongside other local Fa
 - **Backend layers**: `schemas.py` (Pydantic) → `service.py` (logic, SQLAlchemy, authorization,
   raises `AppError`, never commits) → `router.py` (HTTP, audit, single commit).
 - **API casing**: snake_case in Python, camelCase on the wire via `ApiModel`/`RequestModel` aliases.
-- **Frontend features**: one folder per feature; API calls via `lib/api/*`; all crypto via
+- **Frontend features**: one folder per feature; API calls via `api/*`; all crypto via
   `lib/crypto/*`. Components never call `crypto.subtle` directly.
 - **Errors**: user-facing messages must not reveal whether an email exists.
 - **Logging**: never log bodies of auth/secret routes; never log tokens, keys or auth hashes.
@@ -54,3 +54,23 @@ Crypto changes **must** include a round-trip test and a test that a wrong key fa
 | `ux-personas` | Designing any screen, flow or copy (personas, design system, accessibility) |
 | `database-migration` | Changing the database schema (SQLAlchemy + Alembic) |
 | `security-checklist` | Before finishing any feature (review gate) |
+
+## Frontend API module ownership
+
+`frontend/src/api/client.ts` owns HTTP, cookie refresh, bearer headers, envelope
+unwrapping and API errors. Feature folders (`auth`, `account`, `recovery`, `vault`,
+`folders`, `sharing`, `organizations`, `tokens`, `audit`) each contain `api.ts` and
+`types.ts`. Pages import the specific domain instead of a global endpoints barrel.
+Feature hooks own caching/mutations; UI feedback stays in features/components.
+Encryption stays in `lib/crypto` and vault/auth workflow services.
+
+Run `npm run check:api` from `frontend/` after changing a client or backend schema.
+It uses the backend virtualenv (or `PYTHON`) to export current OpenAPI without
+connecting to a database or sending mail, checks route/method coverage, and compiles
+bidirectional response types plus named request-body assignments. Pydantic defaults
+are treated as serialized output fields because routes include defaults in responses.
+Health and machine SDK access are explicitly excluded from browser coverage; cookie
+refresh belongs to transport. Unannotated backend response schemas cannot provide
+field-level guarantees; HTTP integration tests remain necessary. Numeric/string
+constraints and authorization behavior still require backend tests. This is not a
+replacement for browser end-to-end QA.

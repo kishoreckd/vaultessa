@@ -15,7 +15,7 @@ import {
   decryptBytes,
   fromBase64,
 } from '../src/lib/crypto';
-import { recoveryApi } from '../src/lib/api/endpoints';
+import { recoveryApi } from '../src/api/recovery/api';
 import { recoverVault } from '../src/features/auth/authFlows';
 
 afterEach(() => vi.restoreAllMocks());

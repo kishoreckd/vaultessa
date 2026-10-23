@@ -32,7 +32,7 @@ A guest link does not authenticate the visitor's identity. Link alerts therefore
 
 ## API audit scope and remaining gap
 
-Frontend account, vault, sharing, recovery, token and audit calls are centralised in `frontend/src/lib/api/endpoints.ts`; team calls in `frontend/src/lib/api/organizations.ts`, and refresh handling in `client.ts`. Machine-secret retrieval belongs to the SDK/CLI, and health/OpenAPI endpoints serve operations/developer tools.
+Frontend API calls are split by feature under `frontend/src/api/<feature>/api.ts`, with request/response contracts in adjacent `types.ts` files. Shared transport, response decoding and token refresh live in `frontend/src/api/client.ts`. Machine-secret retrieval belongs to the SDK/CLI, and health/OpenAPI endpoints serve operations/developer tools.
 
 Firebase SMS enablement now has a typed frontend API method, and backend SMS verification exists. The frontend still lacks the phone number / Firebase SMS challenge UI for enrolling or signing in with SMS. Authenticator and recovery-code flows are implemented. Organisation/team onboarding is implemented; see [teams](17-organisations-and-teams.md). Email routing correctness does not establish that all planned product features are complete.
 

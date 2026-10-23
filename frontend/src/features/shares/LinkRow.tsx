@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useClipboard } from '@/hooks/useClipboard';
-import type { ExternalShare } from '@/lib/api/types';
+import { type ExternalShare } from '@/api/sharing/types';
 import { useSession } from '@/stores/session';
 import { ItemAvatar } from '../vault/ItemAvatar';
 import { can, relativeTime, type DecryptedItem } from '../vault/vaultTypes';

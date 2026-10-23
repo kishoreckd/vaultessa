@@ -25,8 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { auditApi } from '@/lib/api/endpoints';
-import type { AuditEntry } from '@/lib/api/types';
+import { auditApi } from '@/api/audit/api';
+import { type AuditEntry } from '@/api/audit/types';
 import { cn } from '@/lib/utils';
 import { useVaultItems } from '../vault/hooks';
 

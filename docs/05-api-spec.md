@@ -1,7 +1,9 @@
 # 05 — API Specification (v1, Phase 0)
 
 Base URL: `/api`. JSON in/out. Auth: `Authorization: Bearer <accessToken>` unless marked *public*.
-Live OpenAPI docs (non-production): `/api/docs`, schema at `/api/openapi.json`.
+OpenAPI docs: `/api/docs`, schema at `/api/openapi.json`. Production requires
+`ENABLE_API_DOCS=true` and separate Swagger HTTP Basic credentials for both URLs.
+Development/test docs remain available by default.
 Request bodies reject unknown fields.
 All 🔒 fields are EncStrings / wrapped keys produced by the client.
 

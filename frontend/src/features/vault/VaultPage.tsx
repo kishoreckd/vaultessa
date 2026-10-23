@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useHotkeys } from '@/hooks/useHotkeys';
-import { SECRET_TYPES, type SecretType } from '@/lib/api/types';
+import { SECRET_TYPES, type SecretType } from '@/api/vault/types';
 import { cn } from '@/lib/utils';
 import { analyzeHealth } from '../security/passwordHealth';
 import { summarizeLinks, useExternalShares } from '../shares/hooks';

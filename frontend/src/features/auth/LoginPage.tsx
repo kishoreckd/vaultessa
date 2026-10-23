@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFormErrors } from '@/hooks/useFormErrors';
-import { ApiError } from '@/lib/api/client';
+import { ApiError } from '@/api/client';
 import { emailError } from '@/lib/validation';
 import { authDestination } from '@/lib/auth-destination';
 import { AuthCard } from './AuthCard';

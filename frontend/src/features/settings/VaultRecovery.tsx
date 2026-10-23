@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/common/drawer';
 import { PasswordInput } from '@/components/common/password-input';
-import { recoveryApi } from '@/lib/api/endpoints';
+import { recoveryApi } from '@/api/recovery/api';
 import { deriveMasterKey, deriveAuthHash } from '@/lib/crypto';
 import { enableVaultRecovery } from '../auth/authFlows';
 import { useSession } from '@/stores/session';

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { apiFetch, ApiError, refreshAccessToken, setAccessToken } from '../src/lib/api/client';
+import { apiFetch, ApiError, refreshAccessToken, setAccessToken } from '../src/api/client';
 
 afterEach(() => {
   vi.unstubAllGlobals();

@@ -8,7 +8,7 @@ import { GeneratorPanel } from '@/features/generator/GeneratorPanel';
 import { StrengthMeter } from '@/components/common/strength-meter';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SECRET_TYPES, type SecretType } from '@/lib/api/types';
+import { SECRET_TYPES, type SecretType } from '@/api/vault/types';
 import { DEFAULT_GENERATOR_OPTIONS, estimateStrength, generatePassword } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 import { useFormErrors } from '@/hooks/useFormErrors';

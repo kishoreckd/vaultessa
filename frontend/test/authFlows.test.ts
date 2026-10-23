@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { authApi, accountApi } from '../src/lib/api/endpoints';
+import { authApi } from '../src/api/auth/api';
+import { accountApi } from '../src/api/account/api';
 import { login, unlock, changeMasterPassword } from '../src/features/auth/authFlows';
 import { useSession } from '../src/stores/session';
 import {
@@ -23,6 +24,8 @@ it('keeps unverified logins locked without loading vault keys', async () => {
   const account = {
     id: 'pending-verification',
     emailVerified: false,
+    totpEnabled: false,
+    mfaPhone: null,
     name: 'Pending',
     email: 'pending@example.com',
     kdf: 'PBKDF2_SHA256' as const,
@@ -50,6 +53,8 @@ it('keeps the vault locked until the MFA challenge succeeds', async () => {
   const account = {
     id: 'fixture',
     emailVerified: true,
+    totpEnabled: false,
+    mfaPhone: null,
     name: 'Fixture',
     email: 'fixture@example.com',
     kdf: 'PBKDF2_SHA256' as const,
@@ -91,6 +96,8 @@ it('rewraps the same vault key when changing the master password', async () => {
   const account = {
     id: 'fixture',
     emailVerified: true,
+    totpEnabled: false,
+    mfaPhone: null,
     name: 'Fixture',
     email: 'fixture@example.com',
     kdf: 'PBKDF2_SHA256' as const,

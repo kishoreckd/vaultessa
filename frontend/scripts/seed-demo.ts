@@ -23,7 +23,7 @@ import {
   importAesKey,
   rsaWrap,
 } from '../src/lib/crypto';
-import { responseData, type ApiEnvelope } from '../src/lib/api/client';
+import { responseData, type ApiEnvelope } from '../src/api/client';
 import type { SecretPayload } from '../src/features/vault/vaultTypes';
 
 // This script runs in Node (via tsx); the app's tsconfig is browser-only, so declare what we use.

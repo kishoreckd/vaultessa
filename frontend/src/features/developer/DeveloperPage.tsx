@@ -8,12 +8,12 @@ import { confirmAction } from '@/components/common/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useClipboard } from '@/hooks/useClipboard';
-import { tokensApi } from '@/lib/api/endpoints';
+import { tokensApi } from '@/api/tokens/api';
 import { generateTokenSecret, deriveTokenKeys, encryptBytes, encryptJson, decryptJson } from '@/lib/crypto';
 import { requireKeys } from '@/stores/session';
 import { useVaultItems } from '../vault/hooks';
 import { withSecretKey } from '../vault/vaultCrypto';
-import type { AccessToken } from '@/lib/api/types';
+import { type AccessToken } from '@/api/tokens/types';
 
 export function DeveloperPage() {
   const qc = useQueryClient();

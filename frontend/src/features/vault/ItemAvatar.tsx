@@ -1,4 +1,4 @@
-import type { SecretType } from '@/lib/api/types';
+import { type SecretType } from '@/api/vault/types';
 import { cn } from '@/lib/utils';
 import { TEMPLATES } from './secretTemplates';
 

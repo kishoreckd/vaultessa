@@ -1,4 +1,5 @@
-import type { Permission, VaultItem } from '../../lib/api/types';
+import { type Permission } from '@/api/sharing/types';
+import { type VaultItem } from '@/api/vault/types';
 
 /**
  * The plaintext inside Secret.encryptedData. Common fields are top-level (stable across types);

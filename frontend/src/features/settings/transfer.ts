@@ -1,4 +1,4 @@
-import { SECRET_TYPES, type SecretType } from '@/lib/api/types';
+import { SECRET_TYPES, type SecretType } from '@/api/vault/types';
 import type { SecretPayload } from '../vault/vaultTypes';
 
 export type ImportItem = { type: SecretType; data: SecretPayload; expiresAt?: string | null };

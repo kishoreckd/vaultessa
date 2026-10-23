@@ -9,7 +9,7 @@ import {
   rsaWrap,
   type Bytes,
 } from '../../lib/crypto';
-import type { VaultItem } from '../../lib/api/types';
+import { type VaultItem } from '@/api/vault/types';
 import { requireKeys } from '../../stores/session';
 import type { DecryptedItem, SecretPayload } from './vaultTypes';
 

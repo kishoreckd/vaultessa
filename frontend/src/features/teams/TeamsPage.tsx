@@ -14,10 +14,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useClipboard } from '@/hooks/useClipboard';
-import { organizationsApi as api, type Organization, type TeamMember } from '@/lib/api/organizations';
+import { organizationsApi as api } from '@/api/organizations/api';
+import { type Organization, type TeamMember } from '@/api/organizations/types';
 import { deriveAuthHash, deriveMasterKey } from '@/lib/crypto';
 import { emailError } from '@/lib/validation';
-import { recoveryApi } from '@/lib/api/endpoints';
+import { recoveryApi } from '@/api/recovery/api';
 import { useSession } from '@/stores/session';
 
 type Operation = {

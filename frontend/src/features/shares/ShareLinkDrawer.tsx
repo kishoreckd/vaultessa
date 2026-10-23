@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useFormErrors } from '@/hooks/useFormErrors';
-import type { ExternalShare } from '@/lib/api/types';
+import { type ExternalShare } from '@/api/sharing/types';
 import { generateAccessCode } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 import { emailError } from '@/lib/validation';

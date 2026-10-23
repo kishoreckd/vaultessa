@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useFormErrors } from '@/hooks/useFormErrors';
-import { ApiError } from '@/lib/api/client';
+import { ApiError } from '@/api/client';
 import { emailError, requiredText } from '@/lib/validation';
 import { estimateStrength } from '@/lib/crypto';
 import { cn } from '@/lib/utils';

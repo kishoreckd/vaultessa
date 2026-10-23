@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { foldersApi, secretsApi, sharingApi } from '../../lib/api/endpoints';
-import type { Permission, SecretType } from '../../lib/api/types';
+import { foldersApi } from '@/api/folders/api';
+import { secretsApi } from '@/api/vault/api';
+import { sharingApi } from '@/api/sharing/api';
+import { type Permission } from '@/api/sharing/types';
+import { type SecretType } from '@/api/vault/types';
 import { decryptJson, decryptString, encryptString } from '../../lib/crypto';
 import { requireKeys } from '../../stores/session';
 import {

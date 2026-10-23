@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'vitest';
 import { TeamsPage } from '../src/features/teams/TeamsPage';
 import { useSession } from '../src/stores/session';
-import type { Account } from '../src/lib/api/types';
+import { type Account } from '../src/api/auth/types';
 
 function page(role: 'OWNER' | 'MEMBER', verified: boolean, refreshedVerification = verified) {
   const account = {

@@ -60,7 +60,7 @@ tests/                      pytest
 scripts/                     local email preview generator
 ```
 
-Frontend features remain under `frontend/src/features/`, with shared crypto in `lib/crypto/`, API access in `lib/api/`, and shared UI in `components/`.
+Frontend features remain under `frontend/src/features/`, with shared crypto in `lib/crypto/`, API access in `api/`, and shared UI in `components/`.
 
 **Layer rule:** HTTP handlers live in `api`, validation in `schemas`, and business logic in `services`. Cross-feature calls use services, never routers. Database mappings live in `db/models`; shared enums live in `constants/vault.py`. `main.py` only exposes the ASGI app.
 

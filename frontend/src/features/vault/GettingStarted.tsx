@@ -4,7 +4,7 @@ import { ArrowRight, Download, KeyRound, Lock, ShieldCheck, StickyNote, WandSpar
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { SecretType } from '@/lib/api/types';
+import { type SecretType } from '@/api/vault/types';
 import { useSession } from '@/stores/session';
 
 /** First-run guidance: concrete next steps instead of an empty screen. */

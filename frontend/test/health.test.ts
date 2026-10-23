@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { Permission } from '../src/lib/api/types';
+import { type Permission } from '../src/api/sharing/types';
 import { analyzeHealth } from '../src/features/security/passwordHealth';
 import { cleanPayload, getField, setField, TEMPLATES } from '../src/features/vault/secretTemplates';
 import type { DecryptedItem } from '../src/features/vault/vaultTypes';
 
 const NOW = Date.parse('2026-10-20T00:00:00Z');
 
-function item(id: string, password: string | undefined, opts: { updatedAt?: string; permission?: Permission } = {}) {
+function item(
+  id: string,
+  password: string | undefined,
+  opts: { updatedAt?: string; permission?: Permission } = {},
+) {
   return {
     id,
+    organizationId: null,
+    expiresAt: null,
     type: 'LOGIN',
     encryptedData: '',
     revision: 0,

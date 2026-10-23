@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PasswordInput } from '@/components/common/password-input';
 import { encryptBackup, decryptBackup } from '@/lib/crypto/backup';
-import { secretsApi } from '@/lib/api/endpoints';
+import { secretsApi } from '@/api/vault/api';
 import { useVaultItems, vaultKeys } from '../vault/hooks';
 import { encryptNewSecret } from '../vault/vaultCrypto';
 import { csvItems, validateImport, type ImportItem } from './transfer';
