@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: Literal["development", "test", "production"] = "development"
     # Explicitly enable password-protected docs, including in production.
+    swagger_session_ttl_minutes: int = Field(default=60, ge=5, le=480)
     enable_api_docs: bool = False
     swagger_username: str | None = None
     swagger_password: str | None = Field(default=None, repr=False)

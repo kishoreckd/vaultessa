@@ -27,44 +27,44 @@ def docs_client(monkeypatch):
     return TestClient(application.create_app())
 
 
-@pytest.mark.parametrize("path", ["/api/docs", "/api/openapi.json"])
-def test_docs_require_basic_authentication(docs_client, path):
-    for credentials in (
-        None,
-        ("wrong-user", "dedicated-fixture-password-12345"),
-        ("docs-test-user", "wrong-password"),
-    ):
-        response = docs_client.get(path, auth=credentials)
-        assert response.status_code == 401
-        assert response.headers["www-authenticate"].startswith("Basic")
-        assert response.json()["status"] == "error"
-        assert response.headers["cache-control"] == "no-store"
+def test_login_page_and_schema_are_protected(docs_client):
+    page = docs_client.get("/api/docs")
+    assert page.status_code == 200 and "Welcome back" in page.text
+    assert "SwaggerUIBundle" not in page.text
+    assert "www-authenticate" not in page.headers
+    schema = docs_client.get("/api/openapi.json")
+    assert schema.status_code == 401
+    assert "www-authenticate" not in schema.headers
 
 
-def test_authenticated_docs_and_schema_and_cached_schema_stays_protected(docs_client):
-    credentials = ("docs-test-user", "dedicated-fixture-password-12345")
-    response = docs_client.get("/api/docs", auth=credentials)
-    assert response.status_code == 200 and "text/html" in response.headers["content-type"]
-    assert "/api/openapi.json" in response.text and "SwaggerUIBundle" in response.text
-    assert credentials[1] not in response.text
-    schema = docs_client.get("/api/openapi.json", auth=credentials)
+def test_login_logout_and_cookie_security(docs_client):
+    # HTTPS is required for the production Secure cookie.
+    docs_client.base_url = "https://testserver"
+    headers = {"Origin": "https://testserver"}
+    credentials = {"username": "docs-test-user", "password": "dedicated-fixture-password-12345"}
+    assert docs_client.post("/api/docs/login", json=credentials).status_code == 403
+    assert (
+        docs_client.post(
+            "/api/docs/login", json={**credentials, "password": "wrong"}, headers=headers
+        ).status_code
+        == 401
+    )
+    response = docs_client.post("/api/docs/login", json=credentials, headers=headers)
+    assert response.status_code == 200
+    cookie = response.headers["set-cookie"]
+    assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=strict" in cookie
+    assert credentials["password"] not in cookie
+    page = docs_client.get("/api/docs")
+    assert "SwaggerUIBundle" in page.text and "Sign out of docs" in page.text
+    assert credentials["password"] not in page.text
+    schema = docs_client.get("/api/openapi.json")
     assert schema.status_code == 200 and "openapi" in schema.json()
-    assert "/api/docs" not in schema.json()["paths"]
-    assert "/api/openapi.json" not in schema.json()["paths"]
-    assert schema.json()["paths"]["/api/auth/me"]["get"]["responses"]["200"]["content"]["application/json"][
-        "schema"
-    ]["properties"]["status"]
-    assert credentials[1] not in schema.text
+    assert "/api/docs/login" not in schema.json()["paths"]
+    assert docs_client.get("/api/secrets").status_code == 401
+    assert docs_client.post("/api/docs/logout", headers=headers).status_code == 200
     assert docs_client.get("/api/openapi.json").status_code == 401
-    assert docs_client.get("/api/auth/email/policy").status_code == 200
-    # Documentation credentials do not replace application session/JWT authentication.
-    assert docs_client.get("/api/secrets", auth=credentials).status_code == 401
-
-
-@pytest.mark.parametrize("header", ["Bearer not-a-session", "Basic !!!", "Basic dXNlcg=="])
-def test_invalid_authorization_headers_cannot_open_schema(docs_client, header):
-    response = docs_client.get("/api/openapi.json", headers={"Authorization": header})
-    assert response.status_code == 401 and "www-authenticate" in response.headers
+    docs_client.cookies.set("vaultessa_docs", "tampered")
+    assert docs_client.get("/api/openapi.json").status_code == 401
 
 
 def test_production_docs_disabled_without_flag(monkeypatch):
@@ -93,8 +93,8 @@ def test_docs_login_attempts_are_rate_limited(monkeypatch):
     monkeypatch.setattr(rate_limit, "get_settings", lambda: config)
     monkeypatch.setattr(docs, "auth_limit", rate_limit.RateLimiter("rate_limit_auth_requests", "docs-test"))
     client = TestClient(application.create_app())
-    assert client.get("/api/docs").status_code == 401
-    response = client.get("/api/docs")
+    assert client.get("/api/openapi.json").status_code == 401
+    response = client.get("/api/openapi.json")
     assert response.status_code == 429
     assert response.json()["data"]["code"] == "RATE_LIMITED"
 
@@ -112,3 +112,21 @@ def test_docs_login_attempts_are_rate_limited(monkeypatch):
 def test_enabling_docs_rejects_missing_or_weak_credentials(overrides):
     with pytest.raises(ValidationError):
         configuration(**overrides)
+
+
+def test_documentation_session_expires(docs_client, monkeypatch):
+    from app.core import docs
+
+    docs_client.base_url = "https://testserver"
+    docs_client.post(
+        "/api/docs/login",
+        headers={"Origin": "https://testserver"},
+        json={"username": "docs-test-user", "password": "dedicated-fixture-password-12345"},
+    )
+
+    def expired(*args, **kwargs):
+        raise docs.jwt.ExpiredSignatureError()
+
+    monkeypatch.setattr(docs.jwt, "decode", expired)
+    assert docs_client.get("/api/openapi.json").status_code == 401
+    assert "Welcome back" in docs_client.get("/api/docs").text
