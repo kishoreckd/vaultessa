@@ -46,7 +46,7 @@ export function GettingStarted({ onAdd }: { onAdd: (type: SecretType) => void })
       body: 'See which passwords are weak or reused, and fix them one by one.',
       action: (
         <Button variant="ghost" asChild>
-          <Link to="/security">
+          <Link to="/vault/security">
             View health <ArrowRight />
           </Link>
         </Button>

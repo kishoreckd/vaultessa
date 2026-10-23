@@ -56,6 +56,7 @@ export function RegisterPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setError(null);
     const ok = validate({
       name: requiredText(name, 'your name'),

@@ -16,6 +16,7 @@ router = APIRouter(tags=["operations"])
 @router.get("/health")
 def health(db: DbSession):
     settings = get_settings()
+
     data = {
         "status": "ok",
         "db": "ok",
@@ -50,4 +51,9 @@ def health(db: DbSession):
     if data["schema"] != "ready" or data["migrations"] != "up_to_date":
         data.update(code="SERVICE_UNAVAILABLE", status="degraded")
         return JsonResponse.error("Database schema is not ready", data, status_code=503)
-    return data
+    return JsonResponse.create(
+        status="success",
+        message="Service is healthy",
+        data=data,
+        status_code=200,
+    )

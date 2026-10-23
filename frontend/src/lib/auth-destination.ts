@@ -11,7 +11,7 @@ export function authDestination(state: unknown): string {
     '/links',
     '/developer',
     '/activity',
-    '/security',
+    '/vault/security',
     '/generator',
   ].includes(pathname)
     ? from

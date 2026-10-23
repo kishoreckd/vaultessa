@@ -28,6 +28,7 @@ export function LoginPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     if (!validate({ email: emailError(email), password: password ? null : 'Enter your master password.' }))
       return;
     setBusy(true);
@@ -63,6 +64,7 @@ export function LoginPage() {
           noValidate
           onSubmit={async (event) => {
             event.preventDefault();
+            if (busy) return;
             if (!code.trim()) {
               setError('Enter your verification code.');
               return;

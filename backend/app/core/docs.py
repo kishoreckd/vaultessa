@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app.constants.http import DOCS_PATHS
 from app.core.config import Settings
 from app.core.rate_limit import auth_limit
+from app.utils.validation.json_validator import JsonResponse
 
 
 class DocsLogin(BaseModel):
@@ -111,7 +112,7 @@ headers:{'Content-Type':'application/json'}}).then(()=>location.reload())">Sign 
             token = jwt.encode(
                 {"aud": "vaultessa-docs", "exp": int(time.time()) + ttl}, signing_key, algorithm="HS256"
             )
-            response = JSONResponse({"status": "success", "message": "Signed in", "data": None})
+            response = JsonResponse.success("Signed in")
             response.set_cookie(
                 cookie_name,
                 token,
@@ -125,7 +126,7 @@ headers:{'Content-Type':'application/json'}}).then(()=>location.reload())">Sign 
 
         @app.post("/api/docs/logout", include_in_schema=False, dependencies=[Depends(same_origin)])
         def logout():
-            response = JSONResponse({"status": "success", "message": "Signed out", "data": None})
+            response = JsonResponse.success("Signed out")
             response.delete_cookie(
                 cookie_name, path="/api", httponly=True, secure=settings.is_production, samesite="strict"
             )

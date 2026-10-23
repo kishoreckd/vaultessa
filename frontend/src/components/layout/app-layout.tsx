@@ -50,7 +50,7 @@ const NAV: Array<{
   end?: boolean;
 }> = [
   { to: '/', label: 'Vault', icon: Vault, end: true },
-  { to: '/security', label: 'Security', icon: ShieldCheck },
+  { to: '/vault/security', label: 'Security', icon: ShieldCheck },
   { to: '/generator', label: 'Generator', icon: WandSparkles },
   { to: '/links', label: 'Shared', icon: Link2 },
   { to: '/teams', label: 'Teams', icon: Building2 },

@@ -1,22 +1,26 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { Loading } from '@/components/common/page';
-import { AppLayout } from '@/components/layout/app-layout';
 import { RequireUnlocked } from '@/components/layout/require-unlocked';
 import { bootstrapSession } from '@/features/auth/authFlows';
-import { LoginPage } from '@/features/auth/LoginPage';
-import { EmailVerificationPage, ForgotPasswordPage, RecoverVaultPage } from '@/features/auth/RecoveryPages';
-import { RegisterPage } from '@/features/auth/RegisterPage';
-import { UnlockPage } from '@/features/auth/UnlockPage';
-import { SecurityPage } from '@/features/security/SecurityPage';
-import { GuestSharePage } from '@/features/shares/GuestSharePage';
-import { SharedLinksPage } from '@/features/shares/SharedLinksPage';
-import { VaultPage } from '@/features/vault/VaultPage';
 import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { authDestination } from '@/lib/auth-destination';
 import { useSession } from '@/stores/session';
 
 const TeamsPage = lazy(() => import('@/features/teams/TeamsPage').then((m) => ({ default: m.TeamsPage })));
+const LandingPage = lazy(() => import('@/Landing/LandingPage').then((m) => ({ default: m.LandingPage })));
+const MarketingPage = lazy(() => import('@/Landing/MarketingPage').then((m) => ({ default: m.MarketingPage })));
+const AppLayout = lazy(() => import('@/components/layout/app-layout').then((m) => ({ default: m.AppLayout })));
+const LoginPage = lazy(() => import('@/features/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('@/features/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const UnlockPage = lazy(() => import('@/features/auth/UnlockPage').then((m) => ({ default: m.UnlockPage })));
+const EmailVerificationPage = lazy(() => import('@/features/auth/RecoveryPages').then((m) => ({ default: m.EmailVerificationPage })));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/RecoveryPages').then((m) => ({ default: m.ForgotPasswordPage })));
+const RecoverVaultPage = lazy(() => import('@/features/auth/RecoveryPages').then((m) => ({ default: m.RecoverVaultPage })));
+const SecurityPage = lazy(() => import('@/features/security/SecurityPage').then((m) => ({ default: m.SecurityPage })));
+const GuestSharePage = lazy(() => import('@/features/shares/GuestSharePage').then((m) => ({ default: m.GuestSharePage })));
+const SharedLinksPage = lazy(() => import('@/features/shares/SharedLinksPage').then((m) => ({ default: m.SharedLinksPage })));
+const VaultPage = lazy(() => import('@/features/vault/VaultPage').then((m) => ({ default: m.VaultPage })));
 
 const SettingsPage = lazy(() =>
   import('@/features/settings/SettingsPage').then((m) => ({
@@ -50,6 +54,10 @@ export function App() {
   return (
     <Suspense fallback={<FullPageLoading />}>
       <Routes>
+        <Route path="/features" element={<MarketingPage pageKey="features" />} />
+        <Route path="/security" element={<MarketingPage pageKey="security" />} />
+        <Route path="/how-it-works" element={<MarketingPage pageKey="how-it-works" />} />
+        <Route path="/" element={status === 'loggedOut' || status === 'booting' ? <LandingPage /> : <AuthenticatedRoutes />} />
         {/* Public guest page: works without an account and regardless of session state. */}
         <Route path="/s/:id" element={<GuestSharePage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
@@ -105,7 +113,7 @@ function AuthenticatedRoutes() {
       <Route element={<RequireUnlocked />}>
         <Route element={<AppLayout />}>
           <Route index element={<VaultPage />} />
-          <Route path="security" element={<SecurityPage />} />
+          <Route path="vault/security" element={<SecurityPage />} />
           <Route path="links" element={<SharedLinksPage />} />
           <Route path="generator" element={<GeneratorPage />} />
           <Route path="activity" element={<AuditPage />} />
