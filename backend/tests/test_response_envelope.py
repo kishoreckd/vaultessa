@@ -57,15 +57,12 @@ def test_health_failure_uses_error_envelope(client, monkeypatch):
     monkeypatch.setattr("app.api.health.text", fail)
     response = client.get("/api/health")
     assert response.status_code == 503
-    assert response.json() == {
-        "status": "error",
-        "message": "Database unavailable",
-        "data": {
-            "code": "SERVICE_UNAVAILABLE",
-            "status": "degraded",
-            "db": "unreachable",
-        },
-    }
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["message"] == "Database unavailable"
+    assert body["data"]["code"] == "SERVICE_UNAVAILABLE"
+    assert body["data"]["db"] == "unreachable"
+    assert body["data"]["schema"] == "unknown"
     assert "private connection" not in response.text
 
 

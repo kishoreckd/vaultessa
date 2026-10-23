@@ -9,7 +9,7 @@ import { recoveryApi } from '@/api/recovery/api';
 import { deriveMasterKey, deriveAuthHash } from '@/lib/crypto';
 import { enableVaultRecovery } from '../auth/authFlows';
 import { useSession } from '@/stores/session';
-import { useClipboard } from '@/hooks/useClipboard';
+import { RecoveryKeyCard } from '../auth/RecoveryKeyCard';
 
 export function VaultRecovery() {
   const account = useSession((s) => s.account);
@@ -20,7 +20,6 @@ export function VaultRecovery() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const copy = useClipboard();
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError('');
@@ -181,8 +180,7 @@ export function VaultRecovery() {
           description="Shown only now. Store it somewhere secure outside Vaultessa. Recovery also requires access to your verified email."
         >
           <div className="grid gap-4">
-            <code className="break-all rounded border p-4 font-mono">{key}</code>
-            <Button onClick={() => void copy(key, 'Vault recovery key')}>Copy recovery key</Button>
+            <RecoveryKeyCard recoveryKey={key} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} /> I saved
               this key outside Vaultessa

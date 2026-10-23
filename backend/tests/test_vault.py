@@ -166,7 +166,11 @@ def test_audit_log_pagination(api):
 
 
 def test_health(api):
-    assert response_data(api.get("/api/health")) == {"status": "ok", "db": "ok"}
+    data = response_data(api.get("/api/health"))
+    assert data["status"] == "ok" and data["db"] == "ok"
+    assert data["schema"] == "ready" and data["migrations"] == "up_to_date"
+    assert data["databaseLatencyMs"] >= 0
+    assert data["email"]["delivery"] == "not_tested"
 
 
 def test_shared_with_count_changes_with_grants(api):

@@ -63,6 +63,7 @@ export async function register(input: { name: string; email: string; password: s
     protectedPrivateKey,
   });
   setAccessToken(res.accessToken);
+  sessionStorage.setItem(`recovery-setup:${res.account.id}`, 'pending');
   if (res.account.emailVerified) useSession.getState().unlock(res.account, { vaultKey, privateKey });
   else useSession.getState().setLocked(res.account);
 }

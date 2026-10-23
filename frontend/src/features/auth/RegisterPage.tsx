@@ -72,7 +72,7 @@ export function RegisterPage() {
         : !matches
           ? 'The two passwords don’t match.'
           : null,
-      ack: acknowledged ? null : 'Tick the box to confirm you’ve stored your master password safely.',
+      ack: acknowledged ? null : 'Confirm that you understand how vault recovery works.',
     });
     if (!ok) return;
     setBusy(true);
@@ -158,7 +158,7 @@ export function RegisterPage() {
           <AlertTitle>Only you can unlock your vault</AlertTitle>
           <AlertDescription>
             Vaultessa can’t see your master password. Recovery requires a verified email and a vault recovery
-            key saved in advance. Without that key, a forgotten password cannot unlock your existing data.
+            key saved in advance. After email verification, we will help you create and save your recovery key.
             <div className="mt-2 flex items-center gap-2">
               <Checkbox
                 id={ackId}
@@ -171,7 +171,7 @@ export function RegisterPage() {
                 }}
               />
               <Label htmlFor={ackId} className="text-sm font-normal text-foreground">
-                I understand and have stored it somewhere safe
+                I understand that Vaultessa cannot retrieve my master password
               </Label>
             </div>
             {errors.ack && (
