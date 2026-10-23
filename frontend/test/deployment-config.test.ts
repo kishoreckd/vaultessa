@@ -35,7 +35,15 @@ it.each([
 
 it('keeps private pages excluded from search indexing', () => {
   const config = createDeploymentConfig('https://api.example.com');
-  for (const source of ['/login','/register','/recover','/s/:path*','/vault/:path*']) {
+  for (const source of ['/login','/register','/recover','/s/:path*','/vault','/vault/:path*']) {
     expect(config.headers.find((entry) => entry.source === source)?.headers).toContainEqual({key:'X-Robots-Tag',value:'noindex, nofollow'});
   }
+});
+
+it('permits local OCR WebAssembly workers without allowing remote workers or JavaScript eval', () => {
+  const config = createDeploymentConfig('https://api.example.com');
+  const csp = config.headers.find(entry => entry.source === '/(.*)')?.headers.find(header => header.key === 'Content-Security-Policy')?.value;
+  expect(csp).toContain("worker-src 'self'");
+  expect(csp).toContain("'wasm-unsafe-eval'");
+  expect(csp).not.toContain("'unsafe-eval'");
 });

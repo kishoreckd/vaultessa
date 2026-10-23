@@ -86,7 +86,7 @@ def test_security_and_sharing_buttons_have_specific_destinations(monkeypatch):
     background = BackgroundTasks()
     notify.item_shared(background, user, actor, "VIEW")
     text = background.tasks[0].args[2]
-    assert "Noah" in text and "/?view=shared" in text
+    assert "Noah" in text and "/vault?view=shared" in text
     background = BackgroundTasks()
     notify.new_sign_in(background, user, "192.0.2.1", "Chrome/130.0")
     assert "/settings#account-security" in background.tasks[0].args[2]

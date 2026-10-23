@@ -31,6 +31,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -51,6 +53,7 @@ import {
   useAcceptPendingShares,
   useCreateFolder,
   useDeleteFolder,
+  useDeleteSecrets,
   useFolders,
   useVaultItems,
 } from "./hooks";
@@ -108,6 +111,9 @@ export function VaultPage() {
   const folders = useFolders();
   const createFolder = useCreateFolder();
   const deleteFolder = useDeleteFolder();
+  const deleteSecrets = useDeleteSecrets();
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const copy = useClipboard();
   useAcceptPendingShares(items.data);
 
@@ -118,7 +124,7 @@ export function VaultPage() {
   const [editor, setEditor] = useState<EditorState>({ open: false });
   const [newFolder, setNewFolder] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const all = useMemo(() => items.data ?? [], [items.data]);
   const health = useMemo(() => analyzeHealth(all), [all]);
@@ -137,6 +143,39 @@ export function VaultPage() {
     [all, filter, category, search],
   );
   const selected = all.find((i) => i.id === selectedId) ?? null;
+  const selectable = visible.filter(item => item.isOwner);
+  const checkedItems = selectable.filter(item => checkedIds.has(item.id));
+  const allChecked = selectable.length > 0 && checkedItems.length === selectable.length;
+  useEffect(() => { setCheckedIds(new Set()); }, [filter, category, search]);
+
+  function checkItem(id: string, checked: boolean) {
+    setCheckedIds(current => {
+      const next = new Set(current);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  async function deleteChecked() {
+    if (bulkBusy || !checkedItems.length) return;
+    const ids = checkedItems.map(item => item.id);
+    setBulkBusy(true);
+    try {
+      const ok = await confirmAction({
+        title: `Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}?`,
+        description: 'These items will be permanently deleted, including their history and shared access. This cannot be undone.',
+        confirmLabel: `Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
+        destructive: true,
+      });
+      if (!ok) return;
+      const result = await deleteSecrets.mutateAsync(ids);
+      setCheckedIds(new Set(result.failed));
+      if (selectedId && result.deleted.includes(selectedId)) setSelectedId(null);
+      if (result.deleted.length) toast.success(`${result.deleted.length} ${result.deleted.length === 1 ? 'item' : 'items'} deleted`);
+      if (result.failed.length) toast.error(`${result.failed.length} ${result.failed.length === 1 ? 'item could' : 'items could'} not be deleted. They remain selected so you can retry.`);
+    } catch { toast.error('Could not complete deletion. Refresh the vault before trying again.'); }
+    finally { setBulkBusy(false); }
+  }
   const folderName = (id: string | null) =>
     folders.data?.find((f) => f.id === id)?.name ?? null;
   const typesPresent = SECRET_TYPES.filter((t) =>
@@ -149,7 +188,7 @@ export function VaultPage() {
       type: type ?? (filter.kind === "type" ? filter.type : category !== 'ALL' ? category : "LOGIN"),
     });
 
-  // Deep link from other pages (e.g. Shared links): /?item=<id> opens that item, then cleans the URL.
+  // Deep link from other pages (e.g. Shared links): /vault?item=<id> opens that item, then cleans the URL.
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedId = searchParams.get("item");
   const sharedOnly = searchParams.get("view") === "shared";
@@ -284,13 +323,13 @@ export function VaultPage() {
   ) => {
     const active = filterKey(f) === filterKey(filter);
     return (
-      <div key={filterKey(f)} className="group/nav flex items-center">
+      <div key={filterKey(f)} className="group/nav flex min-w-0 items-center">
         <Button
           variant={active ? "secondary" : "ghost"}
           aria-current={active ? "page" : undefined}
           onClick={() => { setFilter(f); setCategory(f.kind === 'type' ? f.type : 'ALL'); }}
           className={cn(
-            "h-8 w-full justify-start font-normal",
+            "h-8 min-w-0 flex-1 shrink justify-start font-normal",
             active && "font-medium",
           )}
         >
@@ -306,10 +345,15 @@ export function VaultPage() {
   };
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-6 lg:grid-cols-[14rem_minmax(0,1fr)_26rem]">
+    <div className={cn(
+      "grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-6",
+      selected
+        ? "lg:grid-cols-[14rem_minmax(0,1fr)_minmax(20rem,26rem)]"
+        : "lg:grid-cols-[14rem_minmax(0,1fr)]",
+    )}>
       {/* Sidebar (desktop) */}
       <aside
-        className="hidden min-h-0 gap-6 overflow-y-auto overscroll-contain lg:grid lg:content-start"
+        className="hidden min-h-0 min-w-0 gap-6 overflow-x-hidden overflow-y-auto overscroll-contain lg:grid lg:content-start"
         aria-label="Vault navigation"
       >
         <nav className="grid gap-0.5">
@@ -331,28 +375,11 @@ export function VaultPage() {
             asChild
             className="h-8 justify-start font-normal"
           >
-            <Link to="/links">
+            <Link to="/vault/links">
               <Link2 className="text-muted-foreground" /> Shared links
             </Link>
           </Button>
         </nav>
-        {typesPresent.length > 1 && (
-          <div className="grid gap-1">
-            <h2 className="px-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Types
-            </h2>
-            <div className="grid gap-0.5">
-              {typesPresent.map((t) =>
-                navItem(
-                  TEMPLATES[t].label,
-                  { kind: "type", type: t },
-                  all.filter((i) => i.type === t).length,
-                  TEMPLATES[t].icon,
-                ),
-              )}
-            </div>
-          </div>
-        )}
         <div className="grid gap-1">
           <h2 className="px-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Folders
@@ -374,11 +401,11 @@ export function VaultPage() {
               ),
             )}
           </div>
-          <form onSubmit={onCreateFolder} className="mt-1 flex gap-1">
+          <form onSubmit={onCreateFolder} className="mt-1 flex min-w-0 gap-1">
             <Input
               aria-label="New folder name"
               placeholder="New folder"
-              className="h-8"
+              className="h-8 min-w-0 flex-1"
               value={newFolder}
               onChange={(e) => setNewFolder(e.target.value)}
             />
@@ -472,10 +499,17 @@ export function VaultPage() {
           setSelectedId(null);
         }}/>
 
-        <p className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground" aria-live="polite">
           {visible.length} {visible.length === 1 ? "item" : "items"}
           {search && ` matching “${search}”`}
         </p>
+        {checkedItems.length > 0 && <div className="flex items-center gap-2" aria-label="Bulk actions">
+          <span className="text-xs text-muted-foreground" role="status">{checkedItems.length} selected</span>
+          <Button variant="ghost" size="sm" disabled={bulkBusy} onClick={() => setCheckedIds(new Set())}>Clear selection</Button>
+          <Button variant="destructive" size="sm" disabled={bulkBusy} onClick={() => void deleteChecked()}><Trash2 />{deleteSecrets.isPending ? 'Deleting…' : 'Delete selected'}</Button>
+        </div>}
+        </div>
 
         {visible.length === 0 ? (
           <EmptyState
@@ -499,106 +533,76 @@ export function VaultPage() {
           />
         ) : (
           <Card className="min-h-0 flex-1 gap-0 overflow-hidden py-0">
-            <ul
-              ref={listRef}
-              className="min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain"
-              tabIndex={0}
-              aria-label="Scrollable vault items"
-            >
-              {visible.map((item) => {
-                const isSelected = item.id === selectedId;
-                const atRisk =
-                  (health.byId.get(item.id)?.issues.length ?? 0) > 0;
-                const href = safeHref(item.data.url);
-                return (
-                  <li
-                    key={item.id}
-                    data-id={item.id}
-                    className={cn(
-                      "group flex items-center gap-1 pr-2 transition-colors",
-                      isSelected ? "bg-accent" : "hover:bg-muted/50",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      aria-current={isSelected ? "true" : undefined}
+            <div ref={listRef} tabIndex={0} aria-label="Scrollable vault items"
+              className="min-h-0 flex-1 overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 [&>[data-slot=table-container]]:overflow-visible">
+              <Table className="table-fixed">
+                <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10 pl-4">
+                      <Checkbox aria-label="Select all your items in this view" disabled={bulkBusy || !selectable.length}
+                        checked={allChecked ? true : checkedItems.length ? 'indeterminate' : false}
+                        onCheckedChange={value => setCheckedIds(value === true ? new Set(selectable.map(item => item.id)) : new Set())} />
+                    </TableHead>
+                    <TableHead className={cn("pl-4 text-xs text-muted-foreground", !selected && "xl:w-[30%]")}>Item</TableHead>
+                    <TableHead className={cn("w-[27%] text-xs text-muted-foreground", selected ? "hidden" : "hidden xl:table-cell")}>Username / detail</TableHead>
+                    <TableHead className={cn("w-[14%] text-xs text-muted-foreground", selected ? "hidden" : "hidden xl:table-cell")}>Type</TableHead>
+                    <TableHead className={cn("w-[17%] text-xs text-muted-foreground", selected ? "hidden" : "hidden xl:table-cell")}>Folder</TableHead>
+                    <TableHead className="w-28 pr-4 text-right text-xs text-muted-foreground"><span className="sr-only">Quick actions</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visible.map(item => {
+                    const isSelected = item.id === selectedId;
+                    const atRisk = (health.byId.get(item.id)?.issues.length ?? 0) > 0;
+                    const href = safeHref(item.data.url);
+                    const template = TEMPLATES[item.type];
+                    return <TableRow key={item.id} data-id={item.id} data-state={isSelected ? 'selected' : undefined}
                       onClick={() => setSelectedId(item.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                    >
-                      <ItemAvatar type={item.type} name={item.data.name} />
-                      <span className="grid min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "truncate text-sm font-medium",
-                              item.decryptFailed && "text-destructive",
-                            )}
-                          >
-                            {item.data.name}
-                          </span>
-                          {item.favorite && (
-                            <Star
-                              className="size-3.5 shrink-0 fill-amber-400 text-amber-400"
-                              aria-label="Favourite"
-                            />
-                          )}
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {!item.isOwner && (
-                            <span className="text-sky-600 dark:text-sky-400">
-                              Shared by {item.owner.name} ·{" "}
+                      className={cn("group cursor-pointer border-border/60", isSelected || checkedIds.has(item.id) ? "bg-primary/10" : "even:bg-muted/15 hover:bg-primary/5")}>
+                      <TableCell className="pl-4" onClick={event => event.stopPropagation()}>
+                        <Checkbox aria-label={`Select ${item.data.name}`} disabled={bulkBusy || !item.isOwner}
+                          title={!item.isOwner ? 'Only items you own can be deleted' : undefined}
+                          checked={item.isOwner && checkedIds.has(item.id)} onCheckedChange={value => checkItem(item.id, value === true)} />
+                      </TableCell>
+                      <TableCell className="p-0">
+                        <button type="button" aria-current={isSelected ? 'true' : undefined} onClick={() => setSelectedId(item.id)}
+                          className="flex w-full min-w-0 items-center gap-3 px-4 py-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                          <ItemAvatar type={item.type} name={item.data.name} />
+                          <span className="grid min-w-0 flex-1 gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className={cn("truncate text-sm font-medium", item.decryptFailed && "text-destructive")}>{item.data.name}</span>
+                              {item.favorite && <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Favourite" />}
                             </span>
-                          )}
-                          {subtitle(item)}
-                        </span>
-                      </span>
-                      <SharingFlags
-                        item={item}
-                        links={linkInsights.get(item.id)}
-                      />
-                      {atRisk && (
-                        <Badge
-                          variant="outline"
-                          className="hidden border-warning/50 text-warning sm:inline-flex"
-                        >
-                          <TriangleAlert /> At risk
-                        </Badge>
-                      )}
-                    </button>
-                    {/* Quick actions: copy without opening the item. */}
-                    <div className="flex shrink-0 items-center lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100">
-                      {item.data.username && (
-                        <IconAction
-                          label="Copy username"
-                          onClick={() => copyField(item, "username")}
-                        >
-                          <User />
-                        </IconAction>
-                      )}
-                      {item.data.password && can(item, "VIEW") && (
-                        <IconAction
-                          label="Copy password"
-                          onClick={() => copyField(item, "password")}
-                        >
-                          <KeyRound />
-                        </IconAction>
-                      )}
-                      {href && (
-                        <IconAction label="Open website" asChild>
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink />
-                          </a>
-                        </IconAction>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                            <span className={cn("truncate text-xs text-muted-foreground", !selected && "xl:hidden")}>{subtitle(item)}</span>
+                            {!item.isOwner && <span className="truncate text-xs text-muted-foreground">Shared by {item.owner.name}</span>}
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <SharingFlags item={item} links={linkInsights.get(item.id)} />
+                              {atRisk && <Badge variant="outline" className="border-warning/40 text-warning"><TriangleAlert />At risk</Badge>}
+                            </span>
+                          </span>
+                        </button>
+                      </TableCell>
+                      <TableCell className={cn("text-muted-foreground", selected ? "hidden" : "hidden xl:table-cell")}>
+                        <span className="block truncate text-sm">{subtitle(item)}</span>
+                      </TableCell>
+                      <TableCell className={cn(selected ? "hidden" : "hidden xl:table-cell")}>
+                        <span className="inline-flex max-w-full items-center gap-2 text-xs text-muted-foreground"><template.icon className="size-3.5 shrink-0" /><span className="truncate">{template.label}</span></span>
+                      </TableCell>
+                      <TableCell className={cn(selected ? "hidden" : "hidden xl:table-cell")}>
+                        <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"><FolderIcon className="size-3.5 shrink-0" /><span className="truncate">{folderName(item.folderId) || 'No folder'}</span></span>
+                      </TableCell>
+                      <TableCell className="pr-3" onClick={event => event.stopPropagation()}>
+                        <div className="flex items-center justify-end opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          {item.data.username && <IconAction label="Copy username" onClick={() => copyField(item, 'username')}><User /></IconAction>}
+                          {item.data.password && can(item, 'VIEW') && <IconAction label="Copy password" onClick={() => copyField(item, 'password')}><KeyRound /></IconAction>}
+                          {href && <IconAction label="Open website" asChild><a href={href} target="_blank" rel="noopener noreferrer"><ExternalLink /></a></IconAction>}
+                        </div>
+                      </TableCell>
+                    </TableRow>;
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         )}
       </section>
@@ -607,7 +611,7 @@ export function VaultPage() {
       <section
         className={cn(
           "min-h-0 min-w-0 overflow-y-auto overscroll-contain",
-          !selected && "hidden lg:block",
+          !selected && "hidden",
         )}
         aria-label="Item details"
       >

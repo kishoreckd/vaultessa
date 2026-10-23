@@ -100,7 +100,7 @@ def welcome_email(name: str, app_url: str) -> EmailContent:
             f"Welcome, {name}. You can now enable vault recovery in Settings.",
             "Save your recovery key somewhere safe outside Vaultessa. It is different from your two-step verification recovery codes.",
         ],
-        button=("Set up vault recovery", app_url.rstrip("/") + "/settings#account-security"),
+        button=("Set up vault recovery", app_url.rstrip("/") + "/vault/settings#account-security"),
     )
 
 
@@ -158,7 +158,7 @@ def recovery_key_email(enabled: bool, app_url: str) -> EmailContent:
             "Recovery needs both an email link and your saved recovery key. Changing the key invalidates the previous key.",
             "If you didn't make this change, review your account security.",
         ],
-        button=("Review recovery settings", app_url + "/settings#account-security"),
+        button=("Review recovery settings", app_url + "/vault/settings#account-security"),
         tone="alert",
     )
 
@@ -249,7 +249,7 @@ def organization_invitation(
             "Your personal vault stays private. Joining a team does not share any passwords automatically.",
         ],
         details=[("Invited email", recipient), ("Expires", expires_at.strftime("%d %b %Y, %H:%M UTC"))],
-        button=("Review team invitation", get_settings().app_base_url + "/teams?invitation=" + invitation_id),
+        button=("Review team invitation", get_settings().app_base_url + "/vault/teams?invitation=" + invitation_id),
     )
 
 
@@ -264,5 +264,5 @@ def team_membership_changed(name: str, organization_name: str, message: str) -> 
             message,
             "Organisation roles do not grant access to your personal vault. Review separately shared items if needed.",
         ],
-        button=("Review your teams", get_settings().app_base_url + "/teams"),
+        button=("Review your teams", get_settings().app_base_url + "/vault/teams"),
     )

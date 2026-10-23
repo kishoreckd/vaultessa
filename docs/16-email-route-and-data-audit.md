@@ -9,18 +9,18 @@ Priya should understand what happened and the next action; Arjun should reach th
 | Email | Destination | Frontend handling |
 | --- | --- | --- |
 | Verify email | `/verify-email#token=...` | Public verification page consumes token |
-| Welcome | `/settings#account-security` | Security/recovery section |
+| Welcome | `/vault/settings#account-security` | Security/recovery section |
 | Forgot master password | `/recover#token=...` | Public recovery page; saved recovery key still required |
 | Recovery completed | `/login` | Sign in |
-| Recovery enabled/disabled | `/settings#account-security` | Security/recovery section |
-| Password changed, new device, MFA changed | `/settings#account-security` | Security, sessions and MFA controls |
+| Recovery enabled/disabled | `/vault/settings#account-security` | Security/recovery section |
+| Password changed, new device, MFA changed | `/vault/settings#account-security` | Security, sessions and MFA controls |
 | Account locked | `/login` | Sign in after lockout expires |
-| Token created | `/developer` | Token management |
-| Item shared, access changed/removed | `/?view=shared` | Shared-with-me filter; removed items are not shown |
-| Link opened/locked | `/links?link=<id>` | Opens the affected link details, including inactive links |
-| Team invitation/membership | `/teams?invitation=<id>` or `/teams` | Verified-email acceptance and member management |
+| Token created | `/vault/developer` | Token management |
+| Item shared, access changed/removed | `/vault?view=shared` | Shared-with-me filter; removed items are not shown |
+| Link opened/locked | `/vault/links?link=<id>` | Opens the affected link details, including inactive links |
+| Team invitation/membership | `/vault/teams?invitation=<id>` or `/vault/teams` | Verified-email acceptance and member management |
 | Guest invitation | `/s/<id>#<client-created-key>` | Public guest page, optional access code |
-| Item nearing expiry/expired | `/?item=<id>` | Open that item after unlocking; handles missing/deleted items |
+| Item nearing expiry/expired | `/vault?item=<id>` | Open that item after unlocking; handles missing/deleted items |
 
 APP_BASE_URL supplies the origin for account mail. Guest invitation URLs are validated against configured origins before sending. Login, MFA completion and unlocking resume protected email destinations using router state. Only known internal paths are accepted; external destinations and auth redirect loops are rejected. No vault keys or plaintext item data are persisted for navigation.
 

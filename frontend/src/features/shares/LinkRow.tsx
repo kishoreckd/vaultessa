@@ -99,7 +99,7 @@ export function LinkRow({
         {showItem &&
           (item ? (
             <Link
-              to={`/?item=${item.id}`}
+              to={`/vault?item=${item.id}`}
               className="flex w-fit max-w-full items-center gap-1 truncate font-medium underline-offset-4 hover:text-primary hover:underline"
             >
               <span className="truncate">{item.data.name}</span>

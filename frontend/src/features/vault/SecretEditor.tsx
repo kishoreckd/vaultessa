@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
 import { FormField, TextareaField, TextField } from '@/components/common/form-field';
 import { PasswordInput } from '@/components/common/password-input';
+import { CardScanner } from './CardScanner';
 import { GeneratorPanel } from '@/features/generator/GeneratorPanel';
 import { StrengthMeter } from '@/components/common/strength-meter';
 import { Button } from '@/components/ui/button';
@@ -180,6 +181,11 @@ function SecretForm({
           clear('name');
         }}
       />
+
+      {type === 'CARD' && <CardScanner onApply={card => {
+        setData(current => Object.entries(card).reduce((next, [key, value]) => value.trim() ? setField(next, key, value.trim()) : next, current));
+        for (const key of Object.keys(card)) clear(key);
+      }} />}
 
       {template.fields.map((field) => (
         <FieldInput

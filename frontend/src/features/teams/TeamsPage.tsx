@@ -78,7 +78,7 @@ export function TeamsPage() {
       {!verified && (
         <p role="status" className="rounded-lg border p-4 text-sm">
           Verify your email address before creating or joining a team.{' '}
-          <Link className="text-primary underline" to="/settings#account-security">
+          <Link className="text-primary underline" to="/vault/settings#account-security">
             Open account settings
           </Link>
         </p>
@@ -415,7 +415,7 @@ function TeamDetails({ org, run, busy }: { org: Organization; run: (op: Operatio
                   <Button
                     variant="outline"
                     onClick={() =>
-                      void copy(`${window.location.origin}/teams?invitation=${invite.id}`, 'Invitation link')
+                      void copy(`${window.location.origin}/vault/teams?invitation=${invite.id}`, 'Invitation link')
                     }
                   >
                     Copy invitation

@@ -42,7 +42,7 @@ function page(role: 'OWNER' | 'MEMBER', verified: boolean, refreshedVerification
     createElement(
       QueryClientProvider,
       { client },
-      createElement(MemoryRouter, { initialEntries: ['/teams'] }, createElement(TeamsPage)),
+      createElement(MemoryRouter, { initialEntries: ['/vault/teams'] }, createElement(TeamsPage)),
     ),
   );
 }

@@ -79,7 +79,7 @@ export function SharingSummary({ item, links }: { item: DecryptedItem; links?: L
               <ShieldAlert /> Outside org
             </Badge>
           )}
-          <Link to="/links" className="text-primary underline-offset-4 hover:underline">
+          <Link to="/vault/links" className="text-primary underline-offset-4 hover:underline">
             Manage links
           </Link>
         </p>

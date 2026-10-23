@@ -6,6 +6,7 @@ import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { authDestination } from '@/lib/auth-destination';
 import { useSession } from '@/stores/session';
 import { useUnlockExpiry } from '@/hooks/useAutoLock';
+import { LEGACY_VAULT_ROUTES } from '@/lib/vault-routes';
 
 const TeamsPage = lazy(() => import('@/features/teams/TeamsPage').then((m) => ({ default: m.TeamsPage })));
 const LandingPage = lazy(() => import('@/Landing/LandingPage').then((m) => ({ default: m.LandingPage })));
@@ -58,10 +59,13 @@ export function App() {
   return (
     <Suspense fallback={<FullPageLoading />}>
       <Routes>
+        {Object.entries(LEGACY_VAULT_ROUTES).map(([oldPath, newPath]) => (
+          <Route key={oldPath} path={oldPath} element={<LegacyVaultRedirect to={newPath} />} />
+        ))}
         <Route path="/features" element={<MarketingPage pageKey="features" />} />
         <Route path="/security" element={<MarketingPage pageKey="security" />} />
         <Route path="/how-it-works" element={<MarketingPage pageKey="how-it-works" />} />
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<LandingRoute />} />
         {/* Public guest page: works without an account and regardless of session state. */}
         <Route path="/s/:id" element={<GuestSharePage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
@@ -71,6 +75,20 @@ export function App() {
       </Routes>
     </Suspense>
   );
+}
+
+function LegacyVaultRedirect({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}${location.hash}`} state={location.state} replace />;
+}
+
+function LandingRoute() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  // Compatibility with item and shared-view links delivered before /vault existed.
+  return params.has('item') || params.get('view') === 'shared'
+    ? <LegacyVaultRedirect to="/vault" />
+    : <LandingPage />;
 }
 
 function FullPageLoading() {
@@ -118,12 +136,12 @@ function AuthenticatedRoutes() {
         <Route element={<AppLayout />}>
           <Route path="vault" element={<VaultPage />} />
           <Route path="vault/security" element={<SecurityPage />} />
-          <Route path="links" element={<SharedLinksPage />} />
-          <Route path="generator" element={<GeneratorPage />} />
-          <Route path="activity" element={<AuditPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="teams" element={<TeamsPage />} />
-          <Route path="developer" element={<DeveloperPage />} />
+          <Route path="vault/links" element={<SharedLinksPage />} />
+          <Route path="vault/generator" element={<GeneratorPage />} />
+          <Route path="vault/activity" element={<AuditPage />} />
+          <Route path="vault/settings" element={<SettingsPage />} />
+          <Route path="vault/teams" element={<TeamsPage />} />
+          <Route path="vault/developer" element={<DeveloperPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

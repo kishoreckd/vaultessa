@@ -52,7 +52,7 @@ def run_once(now: datetime | None = None) -> dict[str, int]:
             content = expiry_reminder(
                 secret.expires_at,
                 current_stage,
-                get_settings().app_base_url.rstrip("/") + f"/?item={secret.id}",
+                get_settings().app_base_url.rstrip("/") + f"/vault?item={secret.id}",
             )
             content.greeting = f"Hi {owner.name},"
             subject, text, html = render(content)

@@ -51,10 +51,10 @@ const NAV: Array<{
 }> = [
   { to: '/vault', label: 'Vault', icon: Vault, end: true },
   { to: '/vault/security', label: 'Security', icon: ShieldCheck },
-  { to: '/generator', label: 'Generator', icon: WandSparkles },
-  { to: '/links', label: 'Shared', icon: Link2 },
-  { to: '/teams', label: 'Teams', icon: Building2 },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/vault/generator', label: 'Generator', icon: WandSparkles },
+  { to: '/vault/links', label: 'Shared', icon: Link2 },
+  { to: '/vault/teams', label: 'Teams', icon: Building2 },
+  { to: '/vault/settings', label: 'Settings', icon: Settings },
 ];
 
 function initials(name?: string) {
@@ -93,8 +93,8 @@ export function AppLayout() {
       </a>
 
       <header className="sticky top-0 z-40 shrink-0 border-b bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-          <NavLink to="/" aria-label="Vaultessa home">
+        <div className={cn('mx-auto flex h-14 items-center gap-6 px-4', !isVault && 'max-w-7xl')}>
+          <NavLink to="/vault" aria-label="Vaultessa home">
             <VaultessaLogo className="text-base" />
           </NavLink>
 
@@ -152,16 +152,16 @@ export function AppLayout() {
                   <span className="truncate text-xs font-normal text-muted-foreground">{account?.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => navigate('/links')}>
+                <DropdownMenuItem onSelect={() => navigate('/vault/links')}>
                   <Link2 /> Shared links
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => navigate('/settings')}>
+                <DropdownMenuItem onSelect={() => navigate('/vault/settings')}>
                   <Settings /> Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => navigate('/activity')}>
+                <DropdownMenuItem onSelect={() => navigate('/vault/activity')}>
                   <Activity /> Activity log
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => navigate('/developer')}>
+                <DropdownMenuItem onSelect={() => navigate('/vault/developer')}>
                   <Keyboard /> Developer access
                 </DropdownMenuItem>
                 <DropdownMenuSub>
@@ -195,7 +195,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <main id="main" className={cn('mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 lg:pb-8', isVault && 'min-h-0 overflow-hidden')}>
+      <main id="main" className={cn('mx-auto w-full flex-1 px-4 pb-24 pt-6 lg:pb-8', isVault ? 'min-h-0 overflow-hidden' : 'max-w-7xl')}>
         <Outlet />
       </main>
 

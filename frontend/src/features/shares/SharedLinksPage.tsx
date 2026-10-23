@@ -85,7 +85,7 @@ export function SharedLinksPage() {
                     <TableRow key={row.id}>
                       <TableCell>
                         {item ? (
-                          <Link className="font-medium hover:underline" to={`/?item=${item.id}`}>
+                          <Link className="font-medium hover:underline" to={`/vault?item=${item.id}`}>
                             {item.data.name}
                           </Link>
                         ) : (
@@ -153,7 +153,7 @@ export function SharedLinksPage() {
             {people.data?.map(({ item, share }) => (
               <TableRow key={`${item.id}-${share.userId}`}>
                 <TableCell>
-                  <Link to={`/?item=${item.id}`}>{item.data.name}</Link>
+                  <Link to={`/vault?item=${item.id}`}>{item.data.name}</Link>
                 </TableCell>
                 <TableCell>
                   {share.name}
@@ -162,7 +162,7 @@ export function SharedLinksPage() {
                 <TableCell>{share.permission.replace('_', ' ').toLowerCase()}</TableCell>
                 <TableCell>
                   <Button asChild size="sm" variant="outline">
-                    <Link to={`/?item=${item.id}`}>Open item</Link>
+                    <Link to={`/vault?item=${item.id}`}>Open item</Link>
                   </Button>
                 </TableCell>
               </TableRow>

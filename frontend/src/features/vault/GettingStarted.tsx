@@ -34,7 +34,7 @@ export function GettingStarted({ onAdd }: { onAdd: (type: SecretType) => void })
       body: 'Generate one whenever you sign up or change a password.',
       action: (
         <Button variant="ghost" asChild>
-          <Link to="/generator">
+          <Link to="/vault/generator">
             Open generator <ArrowRight />
           </Link>
         </Button>

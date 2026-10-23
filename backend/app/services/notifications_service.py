@@ -141,7 +141,7 @@ def master_password_changed(background: BackgroundTasks, user: User) -> None:
                 "Your vault items remain encrypted.",
                 "If you didn't make this change, review your account security immediately.",
             ],
-            button=("Review account security", _app_url("/settings#account-security")),
+            button=("Review account security", _app_url("/vault/settings#account-security")),
             tone="alert",
         ),
     )
@@ -167,7 +167,7 @@ def new_sign_in(background: BackgroundTasks, user: User, ip: str | None, user_ag
                 ("IP address", ip or "unknown"),
                 ("Time", datetime.now(UTC).strftime("%d %b %Y, %H:%M UTC")),
             ],
-            button=("Review devices", _app_url("/settings#account-security")),
+            button=("Review devices", _app_url("/vault/settings#account-security")),
             tone="alert",
         ),
     )
@@ -207,7 +207,7 @@ def two_step_changed(background: BackgroundTasks, user: User, method: str, enabl
                 if enabled
                 else "If you didn't do this, change your master password and turn it back on.",
             ],
-            button=("Security settings", _app_url("/settings#account-security")),
+            button=("Security settings", _app_url("/vault/settings#account-security")),
             tone="info" if enabled else "alert",
         ),
     )
@@ -226,7 +226,7 @@ def token_created(background: BackgroundTasks, user: User, token_name: str, item
                 f"An access token named “{token_name}” was created with read access to {item_count} item(s)."
             ],
             details=[("Token", token_name)],
-            button=("Manage tokens", _app_url("/developer")),
+            button=("Manage tokens", _app_url("/vault/developer")),
             tone="alert",
         ),
     )
@@ -248,7 +248,7 @@ def item_shared(background: BackgroundTasks, recipient: User, sharer: User, perm
                 f"You now have {permission.replace('_', ' ').lower()} access. Find it under “Shared with me”."
             ],
             details=[("Shared by", f"{sharer.name} ({sharer.email})")],
-            button=("View shared items", _app_url("/?view=shared")),
+            button=("View shared items", _app_url("/vault?view=shared")),
         ),
     )
 
@@ -275,7 +275,7 @@ def access_changed(background: BackgroundTasks, recipient: User, actor: User, pe
             subject=subject,
             heading=heading,
             paragraphs=[body],
-            button=("View shared items", _app_url("/?view=shared")),
+            button=("View shared items", _app_url("/vault?view=shared")),
         ),
     )
 
@@ -305,7 +305,7 @@ def link_opened(
             details=[("Intended recipient", recipient)] if recipient else [],
             button=(
                 "Review shared link",
-                _app_url("/links" + ("?link=" + link_id if link_id else "?include=inactive")),
+                _app_url("/vault/links" + ("?link=" + link_id if link_id else "?include=inactive")),
             ),
         ),
     )
@@ -329,7 +329,7 @@ def link_locked(
             details=[("Intended recipient", recipient)] if recipient else [],
             button=(
                 "Review shared link",
-                _app_url("/links" + ("?link=" + link_id if link_id else "?include=inactive")),
+                _app_url("/vault/links" + ("?link=" + link_id if link_id else "?include=inactive")),
             ),
             tone="alert",
         ),

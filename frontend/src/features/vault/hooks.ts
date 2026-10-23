@@ -102,6 +102,23 @@ export function useDeleteSecret() {
   });
 }
 
+/** Keep failed items available for retry and refresh the vault once per batch. */
+export function useDeleteSecrets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const deleted: string[] = [];
+      const failed: string[] = [];
+      for (const id of ids) {
+        try { await secretsApi.remove(id); deleted.push(id); }
+        catch { failed.push(id); }
+      }
+      return { deleted, failed };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
+  });
+}
+
 /** Recipient removes a secret someone shared with them. */
 export function useLeaveShare() {
   const qc = useQueryClient();

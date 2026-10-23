@@ -8,6 +8,7 @@ __pycache__/
 .railway/
 node_modules/
 dist/
+frontend/public/ocr/
 coverage/
 .env
 .env.*
