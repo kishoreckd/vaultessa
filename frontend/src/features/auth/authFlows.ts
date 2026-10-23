@@ -20,6 +20,7 @@ import { accountApi } from '@/api/account/api';
 import { recoveryApi } from '@/api/recovery/api';
 import { type Account, type MfaChallenge } from '@/api/auth/types';
 import { useSession, type VaultKeys } from '../../stores/session';
+import { restoreUnlock } from '@/lib/remembered-unlock';
 
 // Orchestrates the key hierarchy from docs/03-security-model.md. Pages call these; they never touch keys.
 
@@ -171,7 +172,7 @@ export async function recoverVault(token: string, recoveryKey: string, newPasswo
   }
 }
 
-/** On page load: resume a session via the refresh cookie (vault stays locked until unlock). */
+/** Restore remembered keys only after the server has validated the current session/account. */
 export async function bootstrapSession() {
   if (booted) return;
   booted = true;
@@ -181,7 +182,10 @@ export async function bootstrapSession() {
     return;
   }
   try {
-    useSession.getState().setLocked(await authApi.me());
+    const account = await authApi.me();
+    const remembered = await restoreUnlock(account);
+    if (remembered) useSession.getState().unlock(account, remembered.keys, remembered.expiresAt);
+    else useSession.getState().setLocked(account);
   } catch {
     useSession.getState().clear();
   }

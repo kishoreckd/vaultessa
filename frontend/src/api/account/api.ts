@@ -4,7 +4,6 @@ import type {
   SecurityOverview,
   AccountSetupTotpResponse,
   AccountEnableTotpResponse,
-  AccountEnableSmsResponse,
   AccountRecoveryCodesResponse,
   DeviceSession,
   AccountRevokeOthersResponse,
@@ -22,12 +21,7 @@ export const accountApi = {
       method: 'POST',
       body: { code },
     }),
-  enableSms: (firebaseIdToken: string) =>
-    apiFetch<AccountEnableSmsResponse>('/account/mfa/sms/enable', {
-      method: 'POST',
-      body: { firebaseIdToken },
-    }),
-  disableMfa: (method: 'totp' | 'sms', authHash: string) =>
+  disableMfa: (method: 'totp', authHash: string) =>
     apiFetch<void>('/account/mfa/disable', {
       method: 'POST',
       body: { method, authHash },

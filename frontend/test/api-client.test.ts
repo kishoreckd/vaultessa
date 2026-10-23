@@ -94,3 +94,11 @@ it('rejects invalid responses and failed refreshes', async () => {
   await expect(apiFetch('/auth/email/policy', { auth: false })).rejects.toThrow('Invalid API response');
   expect(await refreshAccessToken()).toBeNull();
 });
+
+it('provides a useful message for an empty proxy or server failure', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500, statusText: 'Internal Server Error' })));
+  await expect(apiFetch('/auth/register', { auth: false })).rejects.toMatchObject({
+    status: 500,
+    message: 'The service is temporarily unavailable. Please try again shortly.',
+  });
+});

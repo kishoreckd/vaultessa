@@ -12,11 +12,12 @@ import {
   Users,
 } from "lucide-react";
 import { VaultessaLogo } from "@/components/common/brand";
-import { LandingIntegrations, trackLandingAction } from "./integrations";
+import { trackLandingAction } from "./integrations";
 import "./landing.css";
-import heroImage from "./assets/vaultessa-hero.png";
+import { ResponsiveArtwork } from "./ResponsiveArtwork";
 import { VaultDemo } from "./VaultDemo";
 import { MarketingHeader } from "./MarketingHeader";
+import { EnquiryForm } from "./EnquiryForm";
 
 const benefits = [
   {
@@ -120,7 +121,6 @@ export function LandingPage() {
   }, []);
   return (
     <div className="landing-page">
-      <LandingIntegrations />
       <a className="landing-skip" href="#main">
         Skip to content
       </a>
@@ -146,12 +146,9 @@ export function LandingPage() {
             </div>
           </div>
           <div className="hero-art">
-            <img
-              src={heroImage}
+            <ResponsiveArtwork
+              name="hero"
               alt="Three people using their devices beside a secure vault, surrounded by protected login cards"
-              width="1536"
-              height="1024"
-              fetchPriority="high"
             />
           </div>
         </section>
@@ -329,10 +326,12 @@ export function LandingPage() {
           </p>
           <SignupLink location="footer">Get started</SignupLink>
         </section>
+        <EnquiryForm />
       </main>
       <footer className="landing-footer landing-container">
         <VaultessaLogo />
         <p>© {new Date().getFullYear()} Vaultessa</p>
+        <a href="#contact">Contact</a>
         <a href="/security">Security</a>
         <Link to="/login">Log in</Link>
         <button

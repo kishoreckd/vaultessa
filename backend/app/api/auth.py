@@ -121,7 +121,6 @@ def login(
         return MfaChallenge(
             mfa_token=create_mfa_token(user.id, user.auth_hash),
             methods=service.mfa_methods(user),
-            phone=user.mfa_phone,
         )
     return _complete_login(db, request, response, background, user, None)
 
@@ -136,7 +135,7 @@ def login_mfa(
     except (jwt.PyJWTError, ValueError):
         raise AppError.unauthorized("Your sign-in expired. Enter your master password again.") from None
     service.ensure_not_locked(user)
-    if not account_service.verify_second_factor(user, body.method, body.code, body.firebase_id_token):
+    if not account_service.verify_second_factor(user, body.method, body.code):
         _fail_attempt(db, request, background, user, {"step": "mfa", "method": body.method})
         return error_response(AppError.unauthorized("That code isn't right. Try again."), background)
     return _complete_login(db, request, response, background, user, body.method)

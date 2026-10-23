@@ -72,7 +72,7 @@ scripts/                     local email preview generator
 
 The web app now includes `/teams` for organisation creation, verified-email invitations, membership roles, ownership transfer and optional DNS-verified domain joining. Item sharing supports optional team scope. See [teams](../docs/17-organisations-and-teams.md).
 
-Run `.venv\Scripts\python.exe scripts/verify_local_email.py` for development-only Mailpit integration checks. It refuses non-loopback SMTP/inbox destinations and sends only fictional example messages. Firebase SMS is deferred.
+Run `.venv\Scripts\python.exe scripts/verify_local_email.py` for development-only Mailpit integration checks. It refuses non-loopback SMTP/inbox destinations and sends only fictional example messages. Authenticator verification is supported; SMS verification has been removed.
 
 ### Shared JSON response format
 

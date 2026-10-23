@@ -3,9 +3,9 @@ import { authDestination } from '../src/lib/auth-destination';
 
 describe('email destinations after authentication', () => {
   it.each([
-    '/?item=123',
+    '/vault?item=123',
     '/teams?invitation=123',
-    '/?view=shared',
+    '/vault?view=shared',
     '/settings#account-security',
     '/links',
     '/developer',
@@ -20,9 +20,9 @@ describe('email destinations after authentication', () => {
     '/unknown',
     '/%2f%2fevil.example',
   ])('rejects %s', (from) => {
-    expect(authDestination({ from })).toBe('/');
+    expect(authDestination({ from })).toBe('/vault');
   });
   it('handles absent state', () => {
-    expect(authDestination(null)).toBe('/');
+    expect(authDestination(null)).toBe('/vault');
   });
 });

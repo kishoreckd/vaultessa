@@ -10,7 +10,7 @@ it('uses the env backend origin while preserving same-origin API requests and SP
   expect(createDeploymentConfig('https://other.example.com').rewrites?.[0]?.destination).toBe(
     'https://other.example.com/api/:path*',
   );
-  expect(config.headers?.[0]?.headers).toEqual(
+  expect(config.headers?.find((entry) => entry.source === '/(.*)')?.headers).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ key: 'Content-Security-Policy' }),
       expect.objectContaining({ key: 'X-Content-Type-Options', value: 'nosniff' }),
@@ -31,4 +31,11 @@ it.each([
   'https://api.example.com/#fragment',
 ])('rejects a missing or invalid backend origin: %s', (origin) => {
   expect(() => createDeploymentConfig(origin)).toThrow(/BACKEND_URL/);
+});
+
+it('keeps private pages excluded from search indexing', () => {
+  const config = createDeploymentConfig('https://api.example.com');
+  for (const source of ['/login','/register','/recover','/s/:path*','/vault/:path*']) {
+    expect(config.headers.find((entry) => entry.source === source)?.headers).toContainEqual({key:'X-Robots-Tag',value:'noindex, nofollow'});
+  }
 });

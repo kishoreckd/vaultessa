@@ -2,10 +2,10 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { Loading } from '@/components/common/page';
 import { RequireUnlocked } from '@/components/layout/require-unlocked';
-import { bootstrapSession } from '@/features/auth/authFlows';
 import { setAccessToken, setUnauthorizedHandler } from '@/api/client';
 import { authDestination } from '@/lib/auth-destination';
 import { useSession } from '@/stores/session';
+import { useUnlockExpiry } from '@/hooks/useAutoLock';
 
 const TeamsPage = lazy(() => import('@/features/teams/TeamsPage').then((m) => ({ default: m.TeamsPage })));
 const LandingPage = lazy(() => import('@/Landing/LandingPage').then((m) => ({ default: m.LandingPage })));
@@ -45,11 +45,15 @@ setUnauthorizedHandler(() => {
 });
 
 export function App() {
+  useUnlockExpiry();
   const status = useSession((s) => s.status);
+  const { pathname } = useLocation();
+  const publicPage = ['/', '/features', '/security', '/how-it-works'].includes(pathname);
 
   useEffect(() => {
-    void bootstrapSession();
-  }, []);
+    if (publicPage) return;
+    void import('@/features/auth/authFlows').then(({ bootstrapSession }) => bootstrapSession()).catch(() => useSession.getState().clear());
+  }, [publicPage]);
 
   return (
     <Suspense fallback={<FullPageLoading />}>
@@ -57,7 +61,7 @@ export function App() {
         <Route path="/features" element={<MarketingPage pageKey="features" />} />
         <Route path="/security" element={<MarketingPage pageKey="security" />} />
         <Route path="/how-it-works" element={<MarketingPage pageKey="how-it-works" />} />
-        <Route path="/" element={status === 'loggedOut' || status === 'booting' ? <LandingPage /> : <AuthenticatedRoutes />} />
+        <Route path="/" element={<LandingPage />} />
         {/* Public guest page: works without an account and regardless of session state. */}
         <Route path="/s/:id" element={<GuestSharePage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
@@ -112,7 +116,7 @@ function AuthenticatedRoutes() {
       />
       <Route element={<RequireUnlocked />}>
         <Route element={<AppLayout />}>
-          <Route index element={<VaultPage />} />
+          <Route path="vault" element={<VaultPage />} />
           <Route path="vault/security" element={<SecurityPage />} />
           <Route path="links" element={<SharedLinksPage />} />
           <Route path="generator" element={<GeneratorPage />} />

@@ -98,15 +98,8 @@ class Settings(BaseSettings):
     # Public origin(s) of the web app; links in emails must start with one of these.
     app_base_url: str
 
-    # Firebase project used for SMS one-time codes (two-step verification). Unset = SMS option hidden.
-    firebase_project_id: str | None = None
-    firebase_jwks_url: str = (
-        "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
-    )
-    firebase_issuer_base_url: str = "https://securetoken.google.com"
-    firebase_max_auth_age_seconds: int = Field(default=300, gt=0)
-    firebase_jwks_cache_seconds: int = Field(default=3600, gt=0)
-    firebase_token_leeway_seconds: int = Field(default=30, ge=0)
+    enquiry_rate_limit_requests: int = Field(default=3, ge=1, le=100)
+    enquiry_rate_limit_window_seconds: int = Field(default=3600, ge=60, le=86400)
 
     @field_validator("totp_period_seconds", "totp_digits", mode="before")
     @classmethod

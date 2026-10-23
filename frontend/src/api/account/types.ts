@@ -1,8 +1,6 @@
 export type SecurityOverview = {
   totpEnabled: boolean;
-  phone: string | null;
   recoveryCodesLeft: number;
-  smsAvailable: boolean;
   emailAvailable: boolean;
 };
 
@@ -33,7 +31,6 @@ export type AccountSetupTotpResponse = { secret: string; otpauthUri: string };
 
 export type AccountEnableTotpResponse = { recoveryCodes: string[] | null };
 
-export type AccountEnableSmsResponse = { recoveryCodes: string[] | null };
 
 export type AccountRecoveryCodesResponse = { recoveryCodes: string[] | null };
 

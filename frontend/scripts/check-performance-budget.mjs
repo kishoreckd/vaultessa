@@ -9,11 +9,11 @@ const limits = [
   { label: 'Shared entry JavaScript (gzip)', pattern: /^index-.*\.js$/, max: 190 * 1024, gzip: true },
   { label: 'Landing JavaScript (gzip)', pattern: /^LandingPage-.*\.js$/, max: 25 * 1024, gzip: true },
   { label: 'Public detail-page JavaScript (gzip)', pattern: /^MarketingPage-.*\.js$/, max: 25 * 1024, gzip: true },
-  { label: 'Public page artwork', pattern: /^(features|security|how-it-works)-.*\.png$/, max: 1900 * 1024, gzip: false },
+  { label: 'Public page artwork', pattern: /^(features|security|how-it-works)-.*\.webp$/, max: 120 * 1024, gzip: false },
   { label: 'Login JavaScript (gzip)', pattern: /^LoginPage-.*\.js$/, max: 20 * 1024, gzip: true },
   { label: 'Registration JavaScript (gzip)', pattern: /^RegisterPage-.*\.js$/, max: 20 * 1024, gzip: true },
   { label: 'Shared CSS (gzip)', pattern: /^index-.*\.css$/, max: 25 * 1024, gzip: true },
-  { label: 'Hero artwork', pattern: /^vaultessa-hero-.*\.(png|webp|avif)$/, max: 1800 * 1024, gzip: false },
+  { label: 'Hero artwork', pattern: /^vaultessa-hero-.*\.(png|webp|avif)$/, max: 120 * 1024, gzip: false },
 ];
 let failed = false;
 for (const { label, pattern, max, gzip } of limits) {

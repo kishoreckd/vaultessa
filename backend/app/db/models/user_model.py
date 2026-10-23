@@ -45,7 +45,7 @@ class User(Base):
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     mfa_secret_enc: Mapped[str | None] = mapped_column(Text)  # TOTP seed, sealed with MFA_ENCRYPTION_KEY
     mfa_last_counter: Mapped[int | None] = mapped_column(Integer)  # blocks replay of a used code
-    mfa_phone: Mapped[str | None] = mapped_column(String(32))  # verified via Firebase phone auth (SMS)
+    mfa_phone: Mapped[str | None] = mapped_column(String(32))  # legacy factor marker; retained to avoid bypassing existing two-step requirements
     mfa_recovery_hashes: Mapped[list | None] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
 
     # Email notification opt-outs, e.g. {"sharing": false}. Security alerts can't be disabled.

@@ -51,6 +51,6 @@ describe("dedicated public pages", () => {
     expect(authDestination({ from: "/vault/security" })).toBe(
       "/vault/security",
     );
-    expect(authDestination({ from: "/security" })).toBe("/");
+    expect(authDestination({ from: "/security" })).toBe("/vault");
   });
 });

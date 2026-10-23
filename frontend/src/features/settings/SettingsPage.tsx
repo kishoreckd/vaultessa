@@ -87,7 +87,7 @@ export function SettingsPage() {
           <FormField
             id={lockId}
             label="Lock the vault after"
-            hint="Of no activity. Reloading the page always locks."
+            hint="Of no activity. Unlock is remembered on this device for up to 6 hours, including refreshes. Manual lock and sign-out clear it."
           >
             <Select
               value={String(prefs.autoLockMinutes)}
@@ -102,7 +102,7 @@ export function SettingsPage() {
               <SelectContent>
                 {AUTO_LOCK_OPTIONS.map((m) => (
                   <SelectItem key={m} value={String(m)}>
-                    {m === 60 ? '1 hour' : `${m} minute${m === 1 ? '' : 's'}`}
+                    {m === 360 ? '6 hours' : m === 60 ? '1 hour' : `${m} minute${m === 1 ? '' : 's'}`}
                   </SelectItem>
                 ))}
               </SelectContent>

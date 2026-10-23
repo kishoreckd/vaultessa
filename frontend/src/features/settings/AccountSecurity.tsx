@@ -24,7 +24,7 @@ export function AccountSecurity() {
   const [qr, setQr] = useState('');
   const [code, setCode] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [reauth, setReauth] = useState<'totp' | 'sms' | 'recovery'>();
+  const [reauth, setReauth] = useState<'totp' | 'recovery'>();
   const [password, setPassword] = useState('');
   const copy = useClipboard();
   useEffect(() => {
@@ -91,12 +91,7 @@ export function AccountSecurity() {
                     Disable authenticator
                   </Button>
                 )}
-                {!!data?.phone && (
-                  <Button variant="outline" disabled={busy} onClick={() => setReauth('sms')}>
-                    Disable SMS verification
-                  </Button>
-                )}
-                {(data?.totpEnabled || data?.phone) && (
+                {data?.totpEnabled && (
                   <Button variant="outline" disabled={busy} onClick={() => setReauth('recovery')}>
                     Replace recovery codes
                   </Button>
@@ -105,11 +100,6 @@ export function AccountSecurity() {
               <p className="text-xs text-muted-foreground">
                 {data?.recoveryCodesLeft ?? 0} recovery codes remaining. Each code works once.
               </p>
-              {!data?.smsAvailable && (
-                <p className="text-xs text-muted-foreground">
-                  SMS verification needs Firebase configuration.
-                </p>
-              )}
             </>
           )}
         </CardContent>

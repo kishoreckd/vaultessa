@@ -2,10 +2,10 @@
 export function authDestination(state: unknown): string {
   const from = (state as { from?: unknown } | null)?.from;
   if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//') || /[\\\r\n]/.test(from))
-    return '/';
+    return '/vault';
   const pathname = from.split(/[?#]/)[0] ?? '/';
   return [
-    '/',
+    '/vault',
     '/teams',
     '/settings',
     '/links',
@@ -15,5 +15,5 @@ export function authDestination(state: unknown): string {
     '/generator',
   ].includes(pathname)
     ? from
-    : '/';
+    : '/vault';
 }

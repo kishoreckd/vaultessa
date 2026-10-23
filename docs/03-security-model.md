@@ -32,8 +32,8 @@ master password ──PBKDF2-SHA256(600k, salt=kdfSalt)──▶ masterKey (256-
 | Master password | User's head | Never stored, never sent |
 | `masterKey`, `KEK` | Client memory during unlock only | Discarded after unwrapping |
 | `authHash` | Sent at login/register | Server stores `scrypt(authHash)` with per-user salt |
-| `vaultKey` | Client memory while unlocked | Server: `protectedVaultKey = AES-GCM(KEK, vaultKey)` |
-| RSA private key | Client memory while unlocked | Server: `protectedPrivateKey = AES-GCM(vaultKey, pkcs8)` |
+| `vaultKey` | Memory while unlocked; non-extractable key cached in IndexedDB for up to 6 hours | Server: `protectedVaultKey = AES-GCM(KEK, vaultKey)` |
+| RSA private key | Memory while unlocked; non-extractable key cached in IndexedDB for up to 6 hours | Server: `protectedPrivateKey = AES-GCM(vaultKey, pkcs8)` |
 | RSA public key | Server, plaintext (SPKI) | Used by others to share to you |
 | `secretKey` | Client memory transiently | Server: `SecretAccess.wrappedKey` per user |
 | Secret payload | — | Server: `Secret.encryptedData = AES-GCM(secretKey, JSON)` |
@@ -80,7 +80,19 @@ lets us migrate algorithms without ambiguity.
 - Keys are imported as **non-extractable** `CryptoKey`s wherever possible (vault key, private key).
 - Decrypted data lives only in memory (React state / query cache), never in `localStorage`,
   `sessionStorage`, IndexedDB, URLs, or logs.
-- Auto-lock after inactivity (default 15 min) and on reload; lock wipes keys + query cache.
+- Unlock is remembered on this device for an absolute six hours from successful login/unlock,
+  including reloads. Only non-extractable vault/private CryptoKey objects are cached in IndexedDB,
+  bound to account ID and the current server-returned protected keys. Server session validation
+  is required before restoration; expiry, key rotation, account mismatch, manual lock and sign-out
+  invalidate the cached unlock. Restoring never renews the original deadline.
+- Idle locking defaults to six hours; users can choose a shorter idle timeout. Lock wipes memory
+  keys/query cache and deletes the IndexedDB record. With blocked/unavailable browser storage,
+  the safe fallback remains lock-on-refresh. No raw master password, raw exported key bytes or
+  decrypted vault contents are persisted.
+- This convenience changes the original memory-only key model: same-origin malicious code can
+  use cached non-extractable keys for decryption even though it cannot export their bytes.
+  The TTL is enforced by the app, not cryptographic key expiry. Closed/suspended browsers cannot
+  guarantee physical deletion at the deadline; expired records are rejected and cleaned on access.
 - Clipboard is cleared 30 s after copying a secret (best effort).
 - Strict CSP, no third-party scripts, no analytics on vault pages, SRI for any static asset.
 

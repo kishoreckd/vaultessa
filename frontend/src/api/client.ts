@@ -93,7 +93,9 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}, re
     throw new ApiError(
       res.status,
       envelope?.status === 'error' ? (envelope.data?.code ?? 'INTERNAL') : 'INTERNAL',
-      envelope?.message ?? res.statusText,
+      envelope?.message ?? (res.status >= 500
+        ? 'The service is temporarily unavailable. Please try again shortly.'
+        : res.statusText),
     );
   }
   if (!envelope || envelope.status !== 'success')

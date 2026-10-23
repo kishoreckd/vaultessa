@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.account import router as account_router
+from app.api.enquiries import router as enquiries_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.external_shares import public_router as public_shares_router
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
 
     for router in (
         health_router,
+        enquiries_router,
         organizations_router,
         auth_router,
         account_router,

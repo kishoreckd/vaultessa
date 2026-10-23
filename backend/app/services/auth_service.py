@@ -99,8 +99,6 @@ def mfa_methods(user: User) -> list[str]:
     methods = []
     if user.totp_enabled:
         methods.append("totp")
-    if user.mfa_phone:
-        methods.append("sms")
     if user.mfa_recovery_hashes:
         methods.append("recovery")
     return methods

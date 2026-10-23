@@ -38,7 +38,6 @@ Process environment variables take precedence. Restart/redeploy after changing t
 | `APP_BASE_URL` | `https://vaultessa.vercel.app` |
 | `CORS_ORIGINS` | `https://vaultessa.vercel.app` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS=true`, `SMTP_FROM` | Brevo host `smtp-relay.brevo.com`, port `587`, SMTP login/key, verified sender. Required for signup email verification. |
-| `FIREBASE_PROJECT_ID` | optional — enables SMS two-step verification |
 
 3. Settings → Networking → **Generate domain**. Copy it (e.g. `https://keyvessa-api.up.railway.app`).
 
@@ -54,7 +53,6 @@ Leave `MAILPIT_BASE_URL` empty in production.
    reads `BACKEND_URL` to configure the proxy. No backend hostname is stored in JSON.
 2. Vercel → **Add New Project** → import the repo → **Root Directory = `frontend`** (framework: Vite).
 3. Deploy. Then set `APP_BASE_URL` / `CORS_ORIGINS` on Railway to the final Vercel (or custom) domain.
-4. Firebase (when enabled): add the Vercel domain under Authentication → Settings → Authorized domains.
 
 ## Production behaviour (automatic when `ENVIRONMENT=production`)
 - API docs are disabled by default. With `ENABLE_API_DOCS=true`, both `/api/docs`

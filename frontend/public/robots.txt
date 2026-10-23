@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /unlock
+Disallow: /recover
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /s/
+Disallow: /vault/
+Disallow: /settings
+Disallow: /teams
+Disallow: /links
+Disallow: /developer
+Disallow: /activity
+Disallow: /generator
+
+Sitemap: https://vaultessa.vercel.app/sitemap.xml

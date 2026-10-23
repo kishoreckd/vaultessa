@@ -12,11 +12,10 @@ os.environ["JWT_ACCESS_SECRET"] = "test-access-secret-that-is-at-least-32-chars"
 os.environ["PRELOGIN_SECRET"] = "test-prelogin-secret-that-is-at-least-32-chars"
 os.environ["MFA_ENCRYPTION_KEY"] = "test-mfa-encryption-key-that-is-at-least-32-chars"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
-# Never send real email or call Firebase from tests (overrides values from a local .env).
+# Never send real email from tests (overrides values from a local .env).
 os.environ["SMTP_HOST"] = ""
 os.environ["EXPIRY_REMINDERS_ENABLED"] = "false"
 os.environ["EMAIL_OUTBOX_WORKER_ENABLED"] = "false"
-os.environ["FIREBASE_PROJECT_ID"] = ""
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402

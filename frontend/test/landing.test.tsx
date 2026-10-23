@@ -17,6 +17,9 @@ describe("public landing page", () => {
     expect(html).toContain('href="/login"');
     expect(html).toContain('href="/register"');
     expect(html).toContain("A little less");
+    expect(html).toContain('srcSet=');
+    expect(html).toContain('.webp');
+    expect(html).not.toContain('vaultessa-hero.png');
     expect(html).toContain('aria-label="Search sample vault"');
   });
 

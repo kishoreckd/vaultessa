@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
   Activity,
   Building2,
@@ -49,7 +49,7 @@ const NAV: Array<{
   icon: LucideIcon;
   end?: boolean;
 }> = [
-  { to: '/', label: 'Vault', icon: Vault, end: true },
+  { to: '/vault', label: 'Vault', icon: Vault, end: true },
   { to: '/vault/security', label: 'Security', icon: ShieldCheck },
   { to: '/generator', label: 'Generator', icon: WandSparkles },
   { to: '/links', label: 'Shared', icon: Link2 },
@@ -67,6 +67,7 @@ function initials(name?: string) {
 }
 
 export function AppLayout() {
+  const isVault = useLocation().pathname === '/vault';
   useAutoLock();
   const account = useSession((s) => s.account);
   const lock = useSession((s) => s.lock);
@@ -83,7 +84,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className={cn('flex flex-col', isVault ? 'h-svh overflow-hidden' : 'min-h-svh')}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow"
@@ -91,7 +92,7 @@ export function AppLayout() {
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
+      <header className="sticky top-0 z-40 shrink-0 border-b bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
           <NavLink to="/" aria-label="Vaultessa home">
             <VaultessaLogo className="text-base" />
@@ -194,7 +195,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 lg:pb-8">
+      <main id="main" className={cn('mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-6 lg:pb-8', isVault && 'min-h-0 overflow-hidden')}>
         <Outlet />
       </main>
 

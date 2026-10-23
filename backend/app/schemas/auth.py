@@ -53,7 +53,7 @@ class LoginResponse(ApiModel):
     account: Account
 
 
-MfaMethod = Literal["totp", "sms", "recovery"]
+MfaMethod = Literal["totp", "recovery"]
 
 
 class MfaChallenge(ApiModel):
@@ -62,15 +62,12 @@ class MfaChallenge(ApiModel):
     mfa_required: Literal[True] = True
     mfa_token: str
     methods: list[MfaMethod]
-    # Firebase's client SDK needs the full number to send the SMS; the user already proved factor one.
-    phone: str | None = None
 
 
 class LoginMfaRequest(RequestModel):
     mfa_token: Annotated[str, StringConstraints(max_length=2048)]
     method: MfaMethod
     code: Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)] | None = None
-    firebase_id_token: Annotated[str, StringConstraints(max_length=8192)] | None = None
 
 
 class TokenResponse(ApiModel):

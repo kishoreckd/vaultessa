@@ -106,11 +106,10 @@ proofs or ciphertext; master passwords never reach the server.
 
 | Method | Path | Body / response |
 | --- | --- | --- |
-| POST | `/auth/login/mfa` (public) | `{ mfaToken, method: "totp" / "sms" / "recovery", code?, firebaseIdToken? }` ? LoginResponse |
+| POST | `/auth/login/mfa` (public) | `{ mfaToken, method: "totp" / "recovery", code? }` ? LoginResponse |
 | GET | `/account/security` | `{ totpEnabled, phone, recoveryCodesLeft, smsAvailable, emailAvailable }` |
 | POST | `/account/mfa/totp/setup` | `{ secret, otpauthUri }`; pending seed sealed at rest |
 | POST | `/account/mfa/totp/enable` | `{ code }` ? `{ recoveryCodes }`, shown once |
-| POST | `/account/mfa/sms/enable` | `{ firebaseIdToken }` ? `{ recoveryCodes }` |
 | POST | `/account/mfa/disable` | `{ method, authHash }` ? 204 |
 | POST | `/account/mfa/recovery-codes` | `{ authHash }` ? `{ recoveryCodes }`; invalidates old codes |
 | POST | `/account/password` | `{ authHash, newAuthHash, kdfSalt, kdfIterations, protectedVaultKey }` ? Account; revokes other sessions |
@@ -190,3 +189,11 @@ See [teams](17-organisations-and-teams.md) for semantics and limitations.
 ## Verified-email access gate
 
 Registration/login responses can return an account with `emailVerified=false` and a restricted session. Such sessions can fetch `/auth/me`, refresh or sign out, but protected APIs reject them with `403 EMAIL_NOT_VERIFIED` until the email token is confirmed. The frontend routes these accounts to `/verify-email` and keeps vault keys locked. This check also covers existing machine tokens. See [verification and recovery](13-email-verification-and-recovery.md).
+
+## Public enquiries
+
+`POST /api/enquiries` accepts `{ name, email, category, message, contactConsent, website? }`.
+Categories: `general`, `teams`, `feedback`; contactConsent must be true; message
+length is 10?4000 characters. Returns a standard 202 acknowledgement without
+contact details. Database-backed rate limiting returns 429. There is no public
+read/list API. The honeypot website field must be empty for human submissions.

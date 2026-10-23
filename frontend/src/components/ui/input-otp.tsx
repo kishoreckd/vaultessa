@@ -27,7 +27,7 @@ function InputOTPSlot({ index, className, ...props }: React.ComponentProps<'div'
       data-slot="input-otp-slot"
       data-active={isActive}
       className={cn(
-        'relative flex h-12 min-w-0 flex-1 items-center justify-center border-y border-r border-input text-xl first:rounded-l-lg first:border-l last:rounded-r-lg dark:bg-input/30 data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-3 data-[active=true]:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20',
+        'relative flex h-12 min-w-0 flex-1 items-center justify-center border-y border-r border-input bg-card text-card-foreground text-xl first:rounded-l-lg first:border-l last:rounded-r-lg data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-2 data-[active=true]:ring-inset data-[active=true]:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20',
         className,
       )}
       {...props}

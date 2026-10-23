@@ -71,7 +71,6 @@ it('keeps the vault locked until the MFA challenge succeeds', async () => {
     mfaRequired: true,
     mfaToken: 'challenge',
     methods: ['totp', 'recovery'],
-    phone: null,
   });
   const mfa = vi
     .spyOn(authApi, 'mfa')

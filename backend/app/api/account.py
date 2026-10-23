@@ -4,7 +4,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, stat
 
 from app.core.deps import Auth, DbSession
 from app.core.errors import AppError
-from app.core.firebase import firebase_enabled
 from app.core.rate_limit import auth_limit
 from app.schemas.account import (
     ChangePasswordRequest,
@@ -16,7 +15,6 @@ from app.schemas.account import (
     RevokeSessionsResponse,
     SecurityOverview,
     SessionOut,
-    SmsEnableRequest,
     TotpEnableRequest,
     TotpSetup,
 )
@@ -46,9 +44,7 @@ def security_overview(auth: Auth, db: DbSession):
     user = get_user(db, auth.user_id)
     return SecurityOverview(
         totp_enabled=user.totp_enabled,
-        phone=user.mfa_phone,
         recovery_codes_left=len(user.mfa_recovery_hashes or []),
-        sms_available=firebase_enabled(),
         email_available=email_enabled(),
     )
 
@@ -70,18 +66,6 @@ def totp_enable(
     record(db, request, AuditAction.MFA_ENABLE, user_id=user.id, details={"method": "totp"})
     db.commit()
     notify.two_step_changed(background, user, "totp", enabled=True)
-    return RecoveryCodes(recovery_codes=codes)
-
-
-@router.post("/mfa/sms/enable", response_model=RecoveryCodes, dependencies=[Depends(auth_limit)])
-def sms_enable(
-    body: SmsEnableRequest, request: Request, background: BackgroundTasks, auth: Auth, db: DbSession
-):
-    user = get_user(db, auth.user_id)
-    _phone, codes = service.enable_sms(user, body.firebase_id_token)
-    record(db, request, AuditAction.MFA_ENABLE, user_id=user.id, details={"method": "sms"})
-    db.commit()
-    notify.two_step_changed(background, user, "sms", enabled=True)
     return RecoveryCodes(recovery_codes=codes)
 
 

@@ -29,13 +29,14 @@ export function createDeploymentConfig(backendUrl: string | undefined) {
       { source: '/(.*)', destination: '/index.html' },
     ],
     headers: [
+      ...['/login','/register','/unlock','/verify-email','/forgot-password','/recover','/s/:path*','/vault/:path*','/settings','/teams','/links','/developer','/activity','/generator'].map((source) => ({ source, headers: [{key:'X-Robots-Tag',value:'noindex, nofollow'}] })),
       {
         source: '/(.*)',
         headers: [
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; script-src 'self' https://www.google.com https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com; font-src 'self' data:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.pwnedpasswords.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; frame-src https://www.google.com https://*.firebaseapp.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+              "default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google-analytics.com; font-src 'self' data:; connect-src 'self' https://api.pwnedpasswords.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
           },
           {
             key: 'Strict-Transport-Security',

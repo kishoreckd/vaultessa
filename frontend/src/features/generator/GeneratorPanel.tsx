@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StrengthMeter } from '@/components/common/strength-meter';
 import { useClipboard } from '@/hooks/useClipboard';
@@ -167,20 +168,22 @@ export function GeneratorPanel({ onUse }: { onUse?: (value: string) => void }) {
           </label>
           <label className="grid gap-2 text-sm">
             Separator
-            <select
-              className="rounded border bg-background p-2"
+            <Select
               value={separator}
-              onChange={(e) => {
-                setSeparator(e.target.value);
-                generate(mode, length, count, e.target.value);
+              onValueChange={(value) => {
+                setSeparator(value);
+                generate(mode, length, count, value);
               }}
             >
+              <SelectTrigger className="w-full" aria-label="Separator"><SelectValue /></SelectTrigger>
+              <SelectContent>
               {['-', ' ', '.', '_'].map((s) => (
-                <option key={s} value={s}>
+                <SelectItem key={s} value={s}>
                   {s === ' ' ? 'Space' : s}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent>
+            </Select>
           </label>
           <p className="text-xs text-muted-foreground">
             Uses a local dictionary and secure randomness. Eight or more words are recommended.

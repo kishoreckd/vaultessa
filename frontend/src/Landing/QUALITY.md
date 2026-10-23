@@ -29,10 +29,13 @@ The initial shared entry was about 231 KiB gzip before this audit and about
 headroom; smaller remains preferable. These sizes exclude separately loaded
 shared dependencies and do not prove any Core Web Vitals threshold.
 
-The existing raster hero is approximately 1.65 MiB; the 1800 KiB limit is a
-regression ceiling, not an ideal mobile image budget. Responsive WebP/AVIF artwork
-is still an optimization opportunity. Width/height reserve its layout space and
-the hero loads with high priority. The page uses locally hosted Geist fonts.
+Marketing artwork is served as responsive WebP at 640, 960 and 1536 pixels.
+The source PNGs remain as editable originals but are not imported by the app.
+The homepage hero is approximately 26/45/84 KiB at those sizes, compared with
+1688 KiB for its original PNG. The maximum shipped artwork budget is now 120 KiB.
+App-only toast/dialog UI and authentication bootstrap code load in separate chunks.
+Public routes allow indexing; private routes use noindex metadata and production
+X-Robots-Tag headers. No production Lighthouse score is claimed by these changes.
 
 ## Authentication and privacy
 
@@ -43,10 +46,10 @@ the hero loads with high priority. The page uses locally hosted Geist fonts.
   authentication API latency and browser key derivation separately.
 - Do not automatically retry registration or login POSTs: retries can cause
   duplicate side effects or distort rate limits.
-- Analytics stays optional and uses explicit app-wide consent; see `src/analytics/README.md`. Never send form values, emails,
+- Analytics stays optional and uses explicit public-marketing-only consent; see `src/analytics/README.md`. Never send form values, emails,
   passwords, share identifiers, recovery material or full URLs to monitoring.
-  GA4 is not an availability monitor. Firebase initialization is not an SMS test.
-- Backend `/api/health` reports database readiness; email/Firebase configuration
+  GA4 is not an availability monitor.
+- Backend `/api/health` reports database readiness; email configuration
   indicators do not establish successful delivery or verification.
 
 ## Outstanding verification

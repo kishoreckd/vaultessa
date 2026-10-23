@@ -3,8 +3,8 @@ import { useLocation } from "react-router";
 import { useSession } from "@/stores/session";
 import { analyticsPage, safeAction, safeDestination } from "./events";
 
-// New consent scope: previous public-page-only consent is deliberately not reused.
-const consentKey = "vaultessa:analytics:v2";
+// Only public marketing pages may load or emit analytics.
+const consentKey = "vaultessa:analytics:marketing:v3";
 const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID as
   string | undefined;
 const enabled = !!measurementId && /^G-[A-Z0-9]+$/.test(measurementId);
@@ -25,12 +25,13 @@ function consent() {
 function page() {
   return analyticsPage(
     window.location.pathname,
-    useSession.getState().status === "unlocked",
+    useSession.getState().status !== "loggedOut",
   );
 }
 function emit(name: string, parameters: Record<string, string> = {}) {
   if (!enabled || !started || consent() !== "accepted") return;
   const current = page();
+  if (!current) return;
   (window as AnalyticsWindow).gtag?.("event", name, {
     ...parameters,
     page_title: current.title,
@@ -40,6 +41,8 @@ function emit(name: string, parameters: Record<string, string> = {}) {
 }
 function start() {
   if (!enabled || started || consent() !== "accepted") return;
+  const current = page();
+  if (!current) return;
   started = true;
   const target = window as AnalyticsWindow;
   target.dataLayer ??= [];
@@ -55,8 +58,8 @@ function start() {
   target.gtag("js", new Date());
   target.gtag("config", measurementId, {
     send_page_view: false,
-    page_location: `${window.location.origin}${page().path}`,
-    page_title: page().title,
+    page_location: `${window.location.origin}${current.path}`,
+    page_title: current.title,
     page_referrer: "",
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
@@ -81,6 +84,10 @@ export function trackSignupPlacement(placement: string) {
   if (allowed.has(placement)) emit("signup_cta_click", { placement });
 }
 
+export function trackEnquirySuccess() {
+  emit("generate_lead", { form_type: "enquiry" });
+}
+
 export function Analytics() {
   const location = useLocation();
   const status = useSession((s) => s.status);
@@ -88,9 +95,21 @@ export function Analytics() {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (status === "booting") return;
+    const eligible = page();
+    if (!eligible) {
+      lastView = "";
+      if (started) {
+        (window as AnalyticsWindow).gtag?.("consent", "update", {
+          analytics_storage: "denied",
+        });
+        window.location.reload();
+      }
+      return;
+    }
     start();
     if (!started || consent() !== "accepted") return;
     const current = page();
+    if (!current) return;
     // Only screen changes count; hash/query-only updates and StrictMode replays do not.
     // Returning A -> B -> A still records the second A visit.
     const key = current.path;
@@ -108,7 +127,11 @@ export function Analytics() {
     const openPreferences = () => setOpen(true);
     window.addEventListener("vaultessa:privacy", openPreferences);
     const click = (event: MouseEvent) => {
-      if (consent() !== "accepted" || !(event.target instanceof Element))
+      if (
+        !page() ||
+        consent() !== "accepted" ||
+        !(event.target instanceof Element)
+      )
         return;
       const control = event.target.closest(
         'button,a,summary,select,input,[role="button"],[role="tab"],[role="menuitem"],[role="checkbox"],[role="switch"]',
@@ -160,6 +183,11 @@ export function Analytics() {
     setOpen(false);
     setRevision((value) => value + 1);
   }
+  if (
+    !analyticsPage(location.pathname, status !== "loggedOut") ||
+    status === "booting"
+  )
+    return null;
   return (
     <>
       <button
@@ -178,7 +206,7 @@ export function Analytics() {
           <strong>Your privacy, your choice.</strong>
           <p className="my-3 text-muted-foreground">
             {enabled
-              ? "Allow optional Google Analytics to measure page visits and control clicks across the website and vault. We exclude form values, passwords, vault contents, recovery keys and item identifiers. Google may use analytics cookies and technical device information."
+              ? "Allow optional Google Analytics to measure page visits and control clicks on our public landing, Features, Security and How it works pages only. We exclude form values, passwords, vault contents, recovery keys and item identifiers. Google may use analytics cookies and technical device information."
               : "Analytics is not configured. No analytics events are sent."}
           </p>
           <div className="flex gap-3">

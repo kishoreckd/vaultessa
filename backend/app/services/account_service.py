@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.core import firebase, totp
+from app.core import totp
 from app.core.errors import AppError
 from app.core.security import hash_auth_key, seal, unseal, verify_auth_key
 from app.db.models.session_model import UserSession
@@ -39,7 +39,7 @@ def change_password(
     return user
 
 
-def verify_second_factor(user: User, method: str, code: str | None, firebase_id_token: str | None) -> bool:
+def verify_second_factor(user: User, method: str, code: str | None) -> bool:
     """Checks one second-step attempt. Mutates the user (replay counter / used recovery code) on success."""
     if method == "totp":
         if not user.totp_enabled or not user.mfa_secret_enc or not code:
@@ -49,14 +49,6 @@ def verify_second_factor(user: User, method: str, code: str | None, firebase_id_
             return False  # wrong, or a code that was already used (replay)
         user.mfa_last_counter = counter
         return True
-
-    if method == "sms":
-        if not user.mfa_phone or not firebase_id_token:
-            return False
-        try:
-            return firebase.verify_phone_token(firebase_id_token) == user.mfa_phone
-        except AppError:
-            return False
 
     if method == "recovery":
         hashes = list(user.mfa_recovery_hashes or [])
@@ -105,12 +97,6 @@ def enable_totp(user: User, code: str) -> list[str] | None:
     return _ensure_recovery_codes(user)
 
 
-def enable_sms(user: User, firebase_id_token: str) -> tuple[str, list[str] | None]:
-    phone = firebase.verify_phone_token(firebase_id_token)
-    user.mfa_phone = phone
-    return phone, _ensure_recovery_codes(user)
-
-
 def disable_method(user: User, method: str) -> None:
     if method == "totp":
         if not user.totp_enabled:
@@ -119,9 +105,7 @@ def disable_method(user: User, method: str) -> None:
         user.mfa_secret_enc = None
         user.mfa_last_counter = None
     else:
-        if not user.mfa_phone:
-            raise AppError.bad_request("SMS codes aren't set up")
-        user.mfa_phone = None
+        raise AppError.bad_request("Unsupported verification method")
     if not user.mfa_required:
         user.mfa_recovery_hashes = None
 

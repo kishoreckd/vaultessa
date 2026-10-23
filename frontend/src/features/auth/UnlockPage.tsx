@@ -17,7 +17,9 @@ function reasonText(reason: LockReason | null, minutes: number) {
     case 'idle':
       return `Locked after ${minutes} minute${minutes === 1 ? '' : 's'} of inactivity to keep it safe.`;
     case 'reload':
-      return 'Your vault locks whenever the page reloads.';
+      return 'Enter your master password to unlock. This device will remember your unlock for up to 6 hours.';
+    case 'expired':
+      return 'Your 6-hour unlock has expired. Enter your master password to continue.';
     default:
       return 'Your vault is locked.';
   }

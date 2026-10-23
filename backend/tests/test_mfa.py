@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from app.core import firebase, totp
+from app.core import totp
 from app.core.config import get_settings
 
 from .helpers import b64, register, response_data
@@ -120,32 +120,6 @@ def test_mfa_token_cannot_be_used_as_access_token(api):
     _enable_totp(api, alice)
     token = response_data(_login(api, alice))["mfaToken"]
     assert api.get("/api/secrets", headers={"Authorization": f"Bearer {token}"}).status_code == 401
-
-
-def test_sms_via_firebase(api, monkeypatch):
-    monkeypatch.setattr(firebase, "verify_phone_token", lambda token: "+919876543210")
-    alice = register(api, "alice")
-    enabled = api.post(
-        "/api/account/mfa/sms/enable", json={"firebaseIdToken": "signed-token"}, headers=alice.headers
-    )
-    assert enabled.status_code == 200 and len(response_data(enabled)["recoveryCodes"]) == 10
-
-    challenge = response_data(_login(api, alice))
-    assert challenge["methods"] == ["sms", "recovery"] and challenge["phone"] == "+919876543210"
-    ok = api.post(
-        "/api/auth/login/mfa",
-        json={"mfaToken": challenge["mfaToken"], "method": "sms", "firebaseIdToken": "signed-token"},
-    )
-    assert ok.status_code == 200
-
-    # a verified token for a different phone number is rejected
-    monkeypatch.setattr(firebase, "verify_phone_token", lambda token: "+15550000000")
-    challenge = response_data(_login(api, alice))
-    bad = api.post(
-        "/api/auth/login/mfa",
-        json={"mfaToken": challenge["mfaToken"], "method": "sms", "firebaseIdToken": "x"},
-    )
-    assert bad.status_code == 401
 
 
 def test_disabling_requires_master_password(api):

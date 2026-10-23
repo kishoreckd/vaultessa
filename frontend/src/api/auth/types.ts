@@ -18,8 +18,7 @@ export type LoginResponse = { accessToken: string; account: Account };
 export type MfaChallenge = {
   mfaRequired: true;
   mfaToken: string;
-  methods: Array<'totp' | 'sms' | 'recovery'>;
-  phone: string | null;
+  methods: Array<'totp' | 'recovery'>;
 };
 
 export type Prelogin = {
@@ -43,7 +42,6 @@ export type AuthLoginRequest = { email: string; authHash: string };
 
 export type AuthMfaRequest = {
   mfaToken: string;
-  method: 'totp' | 'sms' | 'recovery';
+  method: 'totp' | 'recovery';
   code?: string;
-  firebaseIdToken?: string;
 };

@@ -28,10 +28,6 @@ def health(db: DbSession):
             "configuration": "configured" if email_enabled() else "not_configured",
             "delivery": "not_tested",
         },
-        "firebase": {
-            "configuration": "configured" if settings.firebase_project_id else "not_configured",
-            "verification": "not_tested",
-        },
     }
     try:
         started = perf_counter()

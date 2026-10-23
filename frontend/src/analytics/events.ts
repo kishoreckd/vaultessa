@@ -1,34 +1,14 @@
 // Only static route templates and enumerated actions cross the analytics boundary.
 const routes: Record<string, string> = {
+  "/": "Home",
   "/features": "Features",
   "/security": "Security overview",
   "/how-it-works": "How it works",
-  "/login": "Login",
-  "/register": "Registration",
-  "/unlock": "Unlock",
-  "/verify-email": "Email verification",
-  "/forgot-password": "Forgot password",
-  "/recover": "Vault recovery",
-  "/vault/security": "Vault security",
-  "/generator": "Password generator",
-  "/links": "Shared links",
-  "/activity": "Activity",
-  "/settings": "Settings",
-  "/teams": "Teams",
-  "/developer": "Developer",
 };
-export function analyticsPage(pathname: string, unlocked = false) {
+export function analyticsPage(pathname: string, signedIn = false) {
   const path = pathname.split(/[?#]/)[0]!.replace(/\/+$/, "") || "/";
-  if (path === "/")
-    return {
-      path: unlocked ? "/vault" : "/",
-      title: unlocked ? "Vault" : "Home",
-    };
-  if (/^\/s\/[^/]+$/.test(path))
-    return { path: "/s/:id", title: "Guest share" };
-  return routes[path]
-    ? { path, title: routes[path]! }
-    : { path: "/not-found", title: "Not found" };
+  if (path === "/" && signedIn) return null;
+  return routes[path] ? { path, title: routes[path]! } : null;
 }
 const actions: Record<string, string> = {
   "Get started": "get_started",
@@ -79,7 +59,7 @@ export function safeDestination(href: string, origin: string) {
     if (url.origin !== origin) return "external";
     if (href.startsWith("#"))
       return /^#(details|detail-[1-4]|main)$/.test(href) ? href : "section";
-    return analyticsPage(url.pathname).path;
+    return analyticsPage(url.pathname)?.path ?? "private";
   } catch {
     return "unknown";
   }

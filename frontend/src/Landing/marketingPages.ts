@@ -66,11 +66,11 @@ export const marketingPages = {
       {
         eyebrow: "On your device",
         title: "Encryption begins in your browser.",
-        text: "Your browser derives keys from your master password and encrypts vault contents with AES-GCM before sending them to the backend. Unlocking decrypts the data locally; unlocked keys are held in application memory.",
+        text: "Your browser derives keys from your master password and encrypts vault contents with AES-GCM before sending them to the backend. Unlocking decrypts data locally. Non-extractable unlock keys are remembered on this device for up to six hours; readable vault contents stay in memory.",
         points: [
           "Browser-side vault encryption",
           "Password-based key derivation",
-          "Unlocked vault keys held in memory",
+          "Six-hour remembered unlock on this device",
         ],
       },
       {

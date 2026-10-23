@@ -17,18 +17,12 @@ import {
 } from "lucide-react";
 import { VaultessaLogo } from "@/components/common/brand";
 import { MarketingHeader } from "./MarketingHeader";
-import { LandingIntegrations, trackLandingAction } from "./integrations";
+import { trackLandingAction } from "./integrations";
 import { marketingPages, type MarketingPageKey } from "./marketingPages";
-import featuresImage from "./assets/features.png";
-import securityImage from "./assets/security.png";
-import howImage from "./assets/how-it-works.png";
-import "./landing.css";
 
-const images = {
-  features: featuresImage,
-  security: securityImage,
-  "how-it-works": howImage,
-};
+import "./landing.css";
+import { ResponsiveArtwork } from "./ResponsiveArtwork";
+
 const chapterIcons = {
   features: [Folder, Sparkles, Users, KeyRound],
   security: [Laptop, Cloud, Fingerprint, KeyRound],
@@ -86,8 +80,11 @@ export function MarketingPage({ pageKey }: { pageKey: MarketingPageKey }) {
     const title = document.title;
     document.title = `${page.title} — Vaultessa`;
     const target = document.getElementById(window.location.hash.slice(1));
-    if (target && (target.id === 'details' || /^detail-[1-4]$/.test(target.id))) {
-      target.scrollIntoView({ behavior: 'auto', block: 'start' });
+    if (
+      target &&
+      (target.id === "details" || /^detail-[1-4]$/.test(target.id))
+    ) {
+      target.scrollIntoView({ behavior: "auto", block: "start" });
     } else {
       window.scrollTo(0, 0);
     }
@@ -97,7 +94,6 @@ export function MarketingPage({ pageKey }: { pageKey: MarketingPageKey }) {
   }, [page]);
   return (
     <div className="landing-page marketing-page">
-      <LandingIntegrations />
       <a className="landing-skip" href="#main">
         Skip to content
       </a>
@@ -137,13 +133,7 @@ export function MarketingPage({ pageKey }: { pageKey: MarketingPageKey }) {
             </div>
           </div>
           <div className="hero-art">
-            <img
-              src={images[page.image]}
-              alt={page.alt}
-              width="1536"
-              height="1024"
-              fetchPriority="high"
-            />
+            <ResponsiveArtwork name={page.image} alt={page.alt} />
           </div>
         </section>
         <nav
@@ -250,6 +240,7 @@ export function MarketingPage({ pageKey }: { pageKey: MarketingPageKey }) {
           <VaultessaLogo />
         </Link>
         <p>© {new Date().getFullYear()} Vaultessa</p>
+        <a href="/#contact">Contact</a>
         <Link to="/features">Features</Link>
         <Link to="/security">Security</Link>
         <Link to="/how-it-works">How it works</Link>
