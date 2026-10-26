@@ -1,8 +1,9 @@
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from threading import Lock
 from time import monotonic, perf_counter
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -26,17 +27,26 @@ _email_check_cached: tuple[float, dict] | None = None
 
 
 @router.post("/health/email", dependencies=[Depends(auth_limit)])
-def send_test_email(auth: SessionAuth, db: DbSession):
-    """Send only to the session owner's address, at most once per minute per account."""
+def send_test_email(
+    auth: SessionAuth,
+    db: DbSession,
+    email: str = Query(
+        ...,
+        max_length=254,
+        pattern=r"^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$",
+    ),
+):
+    """Send to a validated query recipient, at most once per minute per requesting account."""
     user = db.scalar(select(User).where(User.id == auth.user_id).with_for_update())
     if user is None:
         raise AppError.unauthorized()
     now = datetime.now(UTC)
+    # Fits the existing 16-character category column and keeps the limit independent of recipient.
+    category = "diag" + sha256(str(auth.user_id).encode()).hexdigest()[:12]
     recent = db.scalar(
         select(EmailOutbox.id)
         .where(
-            EmailOutbox.to_address == user.email,
-            EmailOutbox.category == "email_diagnostic",
+            EmailOutbox.category == category,
             EmailOutbox.created_at > now - timedelta(seconds=60),
         )
         .limit(1)
@@ -44,12 +54,12 @@ def send_test_email(auth: SessionAuth, db: DbSession):
     if recent is not None:
         raise AppError.rate_limited()
     outbox_id = email_outbox_service.enqueue(
-        user.email,
+        str(email),
         "Vaultessa — test email",
         "This is a requested Vaultessa email delivery test. It contains no verification code or vault data. "
         "If you received it, this test reached your mailbox.",
         None,
-        "email_diagnostic",
+        category,
         ttl=timedelta(minutes=5),
     )
     db.commit()

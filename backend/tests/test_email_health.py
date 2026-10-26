@@ -91,7 +91,7 @@ def test_route_returns_503_for_missing_configuration(monkeypatch):
     assert response.json()["status"] == "error"
 
 
-def test_test_send_uses_account_email_and_returns_correlation(monkeypatch):
+def test_test_send_uses_query_email_and_returns_correlation(monkeypatch):
     db = MagicMock()
     db.scalar.side_effect = [SimpleNamespace(email="owner@example.com"), None]
     enqueue = MagicMock(return_value=uuid4())
@@ -103,9 +103,9 @@ def test_test_send_uses_account_email_and_returns_correlation(monkeypatch):
         "deliver",
         lambda item, sender: sender("owner@example.com", "Test", "Test body", None),
     )
-    response = health.send_test_email(SimpleNamespace(user_id=uuid4()), db)
+    response = health.send_test_email(SimpleNamespace(user_id=uuid4()), db, "receiver@example.com")
     assert response.status_code == 202
-    assert enqueue.call_args.args[0] == "owner@example.com"
+    assert enqueue.call_args.args[0] == "receiver@example.com"
     assert b'"messageId":"<test@example.com>"' in response.body
     assert b'"delivery":"not_confirmed"' in response.body
 
@@ -116,7 +116,7 @@ def test_test_send_throttles_before_sending(monkeypatch):
     enqueue = MagicMock()
     monkeypatch.setattr(health.email_outbox_service, "enqueue", enqueue)
     with pytest.raises(AppError):
-        health.send_test_email(SimpleNamespace(user_id=uuid4()), db)
+        health.send_test_email(SimpleNamespace(user_id=uuid4()), db, "another@example.com")
     enqueue.assert_not_called()
 
 
