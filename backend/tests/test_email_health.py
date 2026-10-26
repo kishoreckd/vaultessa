@@ -93,7 +93,7 @@ def test_route_returns_503_for_missing_configuration(monkeypatch):
 
 def test_test_send_uses_query_email_and_returns_correlation(monkeypatch):
     db = MagicMock()
-    db.scalar.side_effect = [SimpleNamespace(email="owner@example.com"), None]
+    db.scalar.return_value = None
     enqueue = MagicMock(return_value=uuid4())
     monkeypatch.setattr(health.email_outbox_service, "enqueue", enqueue)
     send = MagicMock(return_value=EmailDeliveryResult("accepted", "SMTP accepted", "<test@example.com>"))
@@ -104,7 +104,6 @@ def test_test_send_uses_query_email_and_returns_correlation(monkeypatch):
         lambda item, sender: sender("owner@example.com", "Test", "Test body", None),
     )
     response = health.send_test_email(
-        SimpleNamespace(user_id=uuid4()),
         db,
         health.TestEmailRequest(
             email="receiver@example.com", title="Check SMTP", message="Custom test contents"
@@ -120,17 +119,16 @@ def test_test_send_uses_query_email_and_returns_correlation(monkeypatch):
 
 def test_test_send_throttles_before_sending(monkeypatch):
     db = MagicMock()
-    db.scalar.side_effect = [SimpleNamespace(email="owner@example.com"), uuid4()]
+    db.scalar.return_value = uuid4()
     enqueue = MagicMock()
     monkeypatch.setattr(health.email_outbox_service, "enqueue", enqueue)
     with pytest.raises(AppError):
-        health.send_test_email(
-            SimpleNamespace(user_id=uuid4()), db, health.TestEmailRequest(email="another@example.com")
-        )
+        health.send_test_email(db, health.TestEmailRequest(email="another@example.com"))
     enqueue.assert_not_called()
 
 
-def test_test_send_requires_authentication():
+def test_test_send_requires_authentication(monkeypatch):
+    monkeypatch.setattr(health, "get_settings", lambda: SimpleNamespace(email_test_api_key="x" * 32))
     app = FastAPI()
     app.include_router(health.router, prefix="/api")
     from app.core.errors import register_error_handlers
@@ -154,3 +152,18 @@ def test_test_email_body_validation(fields):
 
     with pytest.raises(ValidationError):
         health.TestEmailRequest(**fields)
+
+
+def test_email_test_key_accepts_only_matching_secret(monkeypatch):
+    monkeypatch.setattr(health, "get_settings", lambda: SimpleNamespace(email_test_api_key="x" * 32))
+    health.require_email_test_key("x" * 32)
+    for key in [None, "wrong-key"]:
+        with pytest.raises(AppError):
+            health.require_email_test_key(key)
+
+
+def test_email_test_disabled_without_key(monkeypatch):
+    monkeypatch.setattr(health, "get_settings", lambda: SimpleNamespace(email_test_api_key=None))
+    with pytest.raises(AppError) as error:
+        health.require_email_test_key("x" * 32)
+    assert error.value.status_code == 503

@@ -1,19 +1,19 @@
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
+from secrets import compare_digest
 from threading import Lock
 from time import monotonic, perf_counter
 
 from fastapi import APIRouter, Depends
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
-from app.core.deps import DbSession, SessionAuth
+from app.core.deps import DbSession
 from app.core.errors import AppError
 from app.core.rate_limit import auth_limit
 from app.db.models.email_outbox_model import EmailOutbox
-from app.db.models.user_model import User
 from app.services import email_outbox_service
 from app.services.email_config import email_enabled
 from app.services.email_health import check_email_connection
@@ -25,6 +25,15 @@ router = APIRouter(tags=["operations"])
 
 _email_check_lock = Lock()
 _email_check_cached: tuple[float, dict] | None = None
+_test_key_header = APIKeyHeader(name="X-Email-Test-Key", auto_error=False)
+
+
+def require_email_test_key(key: str | None = Depends(_test_key_header)) -> None:
+    configured = get_settings().email_test_api_key
+    if not configured:
+        raise AppError(503, "EMAIL_TEST_DISABLED", "Set EMAIL_TEST_API_KEY to enable test sending")
+    if not key or not compare_digest(key.encode(), configured.encode()):
+        raise AppError.unauthorized("Invalid email test key")
 
 
 class TestEmailRequest(BaseModel):
@@ -42,19 +51,16 @@ class TestEmailRequest(BaseModel):
     )
 
 
-@router.post("/health/email", dependencies=[Depends(auth_limit)])
+@router.post("/health/email", dependencies=[Depends(auth_limit), Depends(require_email_test_key)])
 def send_test_email(
-    auth: SessionAuth,
     db: DbSession,
     payload: TestEmailRequest,
 ):
-    """Send a labelled plain-text test, at most once per minute per requesting account."""
-    user = db.scalar(select(User).where(User.id == auth.user_id).with_for_update())
-    if user is None:
-        raise AppError.unauthorized()
+    """Send a labelled test using X-Email-Test-Key; one test per minute across instances."""
+    # Serialize diagnostic submissions across serverless instances without a user session.
+    db.execute(text("SELECT pg_advisory_xact_lock(746238901)"))
     now = datetime.now(UTC)
-    # Fits the existing 16-character category column and keeps the limit independent of recipient.
-    category = "diag" + sha256(str(auth.user_id).encode()).hexdigest()[:12]
+    category = "email_diagnostic"
     recent = db.scalar(
         select(EmailOutbox.id)
         .where(
