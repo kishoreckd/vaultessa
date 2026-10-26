@@ -3,7 +3,8 @@ from hashlib import sha256
 from threading import Lock
 from time import monotonic, perf_counter
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -26,17 +27,28 @@ _email_check_lock = Lock()
 _email_check_cached: tuple[float, dict] | None = None
 
 
+class TestEmailRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    email: str = Field(
+        max_length=254,
+        pattern=r"^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$",
+    )
+    title: str = Field(default="Email delivery test", min_length=1, max_length=150, pattern=r"^[^\r\n\x00]+$")
+    message: str = Field(
+        default="If you received this message, the Vaultessa email delivery test reached your mailbox.",
+        min_length=1,
+        max_length=5000,
+    )
+
+
 @router.post("/health/email", dependencies=[Depends(auth_limit)])
 def send_test_email(
     auth: SessionAuth,
     db: DbSession,
-    email: str = Query(
-        ...,
-        max_length=254,
-        pattern=r"^[^\s@<>\x00-\x1f\x7f]+@[^\s@<>\x00-\x1f\x7f]+\.[^\s@<>\x00-\x1f\x7f]+$",
-    ),
+    payload: TestEmailRequest,
 ):
-    """Send to a validated query recipient, at most once per minute per requesting account."""
+    """Send a labelled plain-text test, at most once per minute per requesting account."""
     user = db.scalar(select(User).where(User.id == auth.user_id).with_for_update())
     if user is None:
         raise AppError.unauthorized()
@@ -54,10 +66,9 @@ def send_test_email(
     if recent is not None:
         raise AppError.rate_limited()
     outbox_id = email_outbox_service.enqueue(
-        str(email),
-        "Vaultessa — test email",
-        "This is a requested Vaultessa email delivery test. It contains no verification code or vault data. "
-        "If you received it, this test reached your mailbox.",
+        payload.email,
+        f"[Vaultessa test] {payload.title}",
+        "This is a requested Vaultessa test email.\n\n" + payload.message,
         None,
         category,
         ttl=timedelta(minutes=5),

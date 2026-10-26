@@ -103,9 +103,17 @@ def test_test_send_uses_query_email_and_returns_correlation(monkeypatch):
         "deliver",
         lambda item, sender: sender("owner@example.com", "Test", "Test body", None),
     )
-    response = health.send_test_email(SimpleNamespace(user_id=uuid4()), db, "receiver@example.com")
+    response = health.send_test_email(
+        SimpleNamespace(user_id=uuid4()),
+        db,
+        health.TestEmailRequest(
+            email="receiver@example.com", title="Check SMTP", message="Custom test contents"
+        ),
+    )
     assert response.status_code == 202
     assert enqueue.call_args.args[0] == "receiver@example.com"
+    assert enqueue.call_args.args[1] == "[Vaultessa test] Check SMTP"
+    assert enqueue.call_args.args[2].endswith("Custom test contents")
     assert b'"messageId":"<test@example.com>"' in response.body
     assert b'"delivery":"not_confirmed"' in response.body
 
@@ -116,7 +124,9 @@ def test_test_send_throttles_before_sending(monkeypatch):
     enqueue = MagicMock()
     monkeypatch.setattr(health.email_outbox_service, "enqueue", enqueue)
     with pytest.raises(AppError):
-        health.send_test_email(SimpleNamespace(user_id=uuid4()), db, "another@example.com")
+        health.send_test_email(
+            SimpleNamespace(user_id=uuid4()), db, health.TestEmailRequest(email="another@example.com")
+        )
     enqueue.assert_not_called()
 
 
@@ -128,3 +138,19 @@ def test_test_send_requires_authentication():
     register_error_handlers(app)
     with TestClient(app) as client:
         assert client.post("/api/health/email").status_code == 401
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"email": "bad-address"},
+        {"email": "a@example.com", "title": "Title\nBcc: other@example.com"},
+        {"email": "a@example.com", "message": " "},
+        {"email": "a@example.com", "message": "a" * 5001},
+    ],
+)
+def test_test_email_body_validation(fields):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        health.TestEmailRequest(**fields)
