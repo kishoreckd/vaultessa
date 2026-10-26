@@ -30,6 +30,7 @@ def configure_mail_logging() -> None:
 class EmailDeliveryResult:
     status: Literal["accepted", "failed", "unconfigured"]
     message: str
+    message_id: str | None = None
 
 
 def send_email(to: str, subject: str, text: str, html: str | None = None) -> EmailDeliveryResult:
@@ -91,7 +92,9 @@ def send_email(to: str, subject: str, text: str, html: str | None = None) -> Ema
             stage = "close"
         logger.info("SMTP accepted: provider=%s message_id=%s", provider, message["Message-ID"])
         return EmailDeliveryResult(
-            "accepted", "The mail server accepted the email. Inbox delivery is not yet confirmed."
+            "accepted",
+            "The mail server accepted the email. Inbox delivery is not yet confirmed.",
+            str(message["Message-ID"]),
         )
     except (OSError, smtplib.SMTPException) as error:
         # SMTP exceptions can include credentials, addresses or message details. Do not echo them.
