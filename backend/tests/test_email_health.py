@@ -162,8 +162,9 @@ def test_email_test_key_accepts_only_matching_secret(monkeypatch):
             health.require_email_test_key(key)
 
 
-def test_email_test_disabled_without_key(monkeypatch):
-    monkeypatch.setattr(health, "get_settings", lambda: SimpleNamespace(email_test_api_key=None))
+@pytest.mark.parametrize("configured", [None, "", "short-test-key"])
+def test_email_test_disabled_without_key(monkeypatch, configured):
+    monkeypatch.setattr(health, "get_settings", lambda: SimpleNamespace(email_test_api_key=configured))
     with pytest.raises(AppError) as error:
         health.require_email_test_key("x" * 32)
     assert error.value.status_code == 503

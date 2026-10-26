@@ -30,8 +30,10 @@ _test_key_header = APIKeyHeader(name="X-Email-Test-Key", auto_error=False)
 
 def require_email_test_key(key: str | None = Depends(_test_key_header)) -> None:
     configured = get_settings().email_test_api_key
-    if not configured:
-        raise AppError(503, "EMAIL_TEST_DISABLED", "Set EMAIL_TEST_API_KEY to enable test sending")
+    if not configured or len(configured) < 32:
+        raise AppError(
+            503, "EMAIL_TEST_DISABLED", "Set EMAIL_TEST_API_KEY to a secret of at least 32 characters"
+        )
     if not key or not compare_digest(key.encode(), configured.encode()):
         raise AppError.unauthorized("Invalid email test key")
 

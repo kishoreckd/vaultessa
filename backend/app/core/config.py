@@ -78,7 +78,8 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_starttls: bool = False
     smtp_timeout_seconds: int = Field(default=10, gt=0, le=120)
-    email_test_api_key: str | None = Field(default=None, min_length=32, repr=False)
+    # Optional diagnostic configuration must not prevent the entire API from starting.
+    email_test_api_key: str | None = Field(default=None, repr=False)
     mailpit_base_url: str | None = None  # Optional local SMTP acceptance test inbox.
     smtp_from: str | None = None
     # Durable email outbox: every email is recorded, retried with backoff after SMTP/server failures.
