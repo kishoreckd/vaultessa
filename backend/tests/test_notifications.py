@@ -66,3 +66,22 @@ def test_sharing_emails_and_opt_out(api, outbox):
         headers={"User-Agent": "Mozilla/5.0 (Macintosh; Mac OS X) Safari/605.1"},
     )
     assert outbox[-1]["to"] == bob.email and "New sign-in" in outbox[-1]["subject"]
+
+
+def test_recovery_code_use_emails_codes_left_and_asks_to_replace_when_low(api, outbox):
+    from .test_mfa import _enable_totp, _login
+
+    alice = register(api, "alice")
+    _, codes, _ = _enable_totp(api, alice)
+    for used, code in enumerate(codes[:5], start=1):
+        token = response_data(_login(api, alice))["mfaToken"]
+        outbox.clear()
+        signed_in = api.post(
+            "/api/auth/login/mfa", json={"mfaToken": token, "method": "recovery", "code": code}
+        )
+        assert signed_in.status_code == 200
+        left = 10 - used
+        mail = next(m for m in outbox if m["subject"].startswith("A recovery code was used"))
+        assert mail["to"] == alice.email and f"{left} recovery codes left" in mail["subject"]
+        # From 5 left onwards the email asks to replace the codes.
+        assert ("running low" in mail["text"]) == (left <= 5)

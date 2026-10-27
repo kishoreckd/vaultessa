@@ -138,7 +138,12 @@ def login_mfa(
     if not account_service.verify_second_factor(user, body.method, body.code):
         _fail_attempt(db, request, background, user, {"step": "mfa", "method": body.method})
         return error_response(AppError.unauthorized("That code isn't right. Try again."), background)
-    return _complete_login(db, request, response, background, user, body.method)
+    result = _complete_login(db, request, response, background, user, body.method)
+    if body.method == "recovery":
+        notify.recovery_code_used(
+            background, user, len(user.mfa_recovery_hashes or []), *client_meta(request)
+        )
+    return result
 
 
 @router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(refresh_limit)])

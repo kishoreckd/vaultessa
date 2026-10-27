@@ -258,6 +258,50 @@ def two_step_changed(background: BackgroundTasks, user: User, method: str, enabl
     )
 
 
+def recovery_code_used(
+    background: BackgroundTasks, user: User, left: int, ip: str | None, user_agent: str | None
+) -> None:
+    """Sent every time a two-step recovery code signs someone in; warns when codes run low."""
+    low = left <= get_settings().recovery_codes_low_threshold
+    left_text = (
+        "no recovery codes left" if left == 0 else f"{left} recovery code{'s' if left != 1 else ''} left"
+    )
+    paragraphs = [
+        f"A two-step recovery code was just used to sign in to your account. You have {left_text}.",
+        "If this wasn't you, sign out other devices, change your master password "
+        "and replace your recovery codes.",
+    ]
+    if low:
+        paragraphs.append(
+            "You're running low. Replace your recovery codes now "
+            "so you can still sign in if you lose your phone."
+            if left
+            else "Replace your recovery codes now — without them you can't sign in if you lose your phone."
+        )
+    _queue(
+        background,
+        user,
+        Category.SECURITY,
+        EmailContent(
+            subject=f"A recovery code was used — {left_text}",
+            heading="A recovery code was used to sign in",
+            preheader=f"You have {left_text}.",
+            paragraphs=paragraphs,
+            details=[
+                ("Codes left", str(left)),
+                ("Device", _device(user_agent)),
+                ("IP address", ip or "unknown"),
+                ("Time", datetime.now(UTC).strftime("%d %b %Y, %H:%M UTC")),
+            ],
+            button=(
+                "Replace recovery codes" if low else "Review security",
+                _app_url("/vault/settings#account-security"),
+            ),
+            tone="alert",
+        ),
+    )
+
+
 def token_created(background: BackgroundTasks, user: User, token_name: str, item_count: int) -> None:
     _queue(
         background,

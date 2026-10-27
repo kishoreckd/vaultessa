@@ -249,7 +249,10 @@ def organization_invitation(
             "Your personal vault stays private. Joining a team does not share any passwords automatically.",
         ],
         details=[("Invited email", recipient), ("Expires", expires_at.strftime("%d %b %Y, %H:%M UTC"))],
-        button=("Review team invitation", get_settings().app_base_url + "/vault/teams?invitation=" + invitation_id),
+        button=(
+            "Review team invitation",
+            get_settings().app_base_url + "/vault/teams?invitation=" + invitation_id,
+        ),
     )
 
 

@@ -62,5 +62,6 @@ export function RecoveryKeyCard({ recoveryKey }: { recoveryKey: string }) {
       <Button disabled={!image} onClick={() => void download()}>Download recovery image</Button>
     </div>
     <p className="text-xs text-muted-foreground">The QR contains your recovery key. Store it privately outside Vaultessa. It is generated on this device and is not emailed or uploaded.</p>
+    <p className="text-xs font-medium text-warning">This is not an authenticator QR — don’t scan it into Google Authenticator. To set up two-step verification, use Settings → Account security.</p>
   </div>;
 }

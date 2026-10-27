@@ -6,7 +6,8 @@ function InputOTP({ className, containerClassName, ...props }: React.ComponentPr
   return (
     <OTPInput
       data-slot="input-otp"
-      containerClassName={cn('flex items-center has-disabled:opacity-50', containerClassName)}
+      // Full width by default: slots use flex-1, so without a width they collapse to nothing.
+      containerClassName={cn('flex w-full items-center has-disabled:opacity-50', containerClassName)}
       className={cn('disabled:cursor-not-allowed', className)}
       {...props}
     />
@@ -14,7 +15,7 @@ function InputOTP({ className, containerClassName, ...props }: React.ComponentPr
 }
 
 function InputOTPGroup({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="input-otp-group" className={cn('flex items-center', className)} {...props} />;
+  return <div data-slot="input-otp-group" className={cn('flex w-full items-center', className)} {...props} />;
 }
 
 function InputOTPSlot({ index, className, ...props }: React.ComponentProps<'div'> & { index: number }) {

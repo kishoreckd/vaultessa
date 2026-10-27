@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
 import { PasswordInput } from '@/components/common/password-input';
-import { TextField } from '@/components/common/form-field';
 import { confirmAction } from '@/components/common/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -273,14 +275,27 @@ export function AccountSecurity() {
             {qr && <img src={qr} width={240} height={240} alt="Authenticator setup QR code" />}
             <p className="text-sm">Or enter this setup key:</p>
             <code className="break-all rounded border p-3">{setup.secret}</code>
-            <TextField
-              label="Authenticator code"
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-            />
+            <div className="grid gap-2">
+              <Label htmlFor="setup-authenticator-code">Authenticator code</Label>
+              <InputOTP
+                id="setup-authenticator-code"
+                maxLength={6}
+                pattern={REGEXP_ONLY_DIGITS}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                value={code}
+                onChange={setCode}
+                disabled={busy}
+                pasteTransformer={(text) => text.replace(/\D/g, '')}
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <InputOTPSlot key={index} index={index} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
             <Button type="submit" disabled={busy}>
               Verify and enable
             </Button>

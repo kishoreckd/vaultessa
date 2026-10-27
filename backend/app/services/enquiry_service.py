@@ -23,11 +23,23 @@ def save_enquiry(db: Session, body: EnquiryRequest, client_ip: str) -> None:
     lock_key = int.from_bytes(bytes.fromhex(client_hash)[:8], "big", signed=True)
     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.enquiry_rate_limit_window_seconds)
-    recent = db.scalar(select(func.count()).select_from(Enquiry).where(
-        Enquiry.client_hash == client_hash, Enquiry.created_at >= cutoff
-    )) or 0
+    recent = (
+        db.scalar(
+            select(func.count())
+            .select_from(Enquiry)
+            .where(Enquiry.client_hash == client_hash, Enquiry.created_at >= cutoff)
+        )
+        or 0
+    )
     if recent >= settings.enquiry_rate_limit_requests:
         raise AppError(429, "RATE_LIMITED", "Too many enquiries. Please try again later.")
-    db.add(Enquiry(name=body.name, email=body.email, category=body.category,
-                   message=body.message, client_hash=client_hash))
+    db.add(
+        Enquiry(
+            name=body.name,
+            email=body.email,
+            category=body.category,
+            message=body.message,
+            client_hash=client_hash,
+        )
+    )
     db.commit()

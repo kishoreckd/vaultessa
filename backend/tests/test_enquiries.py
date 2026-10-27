@@ -6,8 +6,14 @@ from app.db.session import engine
 
 
 def payload(**changes):
-    return {"name": "Demo Visitor", "email": "visitor@example.com", "category": "teams",
-            "message": "I would like to learn about team sharing.", "contactConsent": True, **changes}
+    return {
+        "name": "Demo Visitor",
+        "email": "visitor@example.com",
+        "category": "teams",
+        "message": "I would like to learn about team sharing.",
+        "contactConsent": True,
+        **changes,
+    }
 
 
 def test_enquiry_is_private_and_returns_only_acknowledgement(api):
@@ -24,8 +30,14 @@ def test_enquiry_is_private_and_returns_only_acknowledgement(api):
 
 
 def test_invalid_enquiry_and_missing_consent_are_rejected(api):
-    for changes in [{"email": "bad"}, {"message": "short"}, {"contactConsent": False},
-                    {"category": "unknown"}, {"name": " "}, {"message": "x" * 4001}]:
+    for changes in [
+        {"email": "bad"},
+        {"message": "short"},
+        {"contactConsent": False},
+        {"category": "unknown"},
+        {"name": " "},
+        {"message": "x" * 4001},
+    ]:
         assert api.post("/api/enquiries", json=payload(**changes)).status_code == 400
     with Session(engine) as db:
         assert db.scalar(select(func.count()).select_from(Enquiry)) == 0
