@@ -59,3 +59,25 @@ def test_enquiries_have_database_backed_rate_limit(api):
 
 def test_removed_sms_api_cannot_be_enabled(client):
     assert client.post("/api/account/mfa/sms/enable", json={}).status_code == 404
+
+
+def test_new_enquiry_emails_the_team_inbox_but_honeypots_do_not(api, monkeypatch):
+    from app.services import enquiry_service
+
+    sent = []
+    settings = enquiry_service.get_settings().model_copy(update={"enquiry_notify_email": "team@example.com"})
+    monkeypatch.setattr(enquiry_service, "get_settings", lambda: settings)
+    monkeypatch.setattr(enquiry_service, "email_enabled", lambda: True)
+    monkeypatch.setattr(
+        enquiry_service, "send_email", lambda to, subject, text, html=None: sent.append((to, subject, text))
+    )
+
+    assert api.post("/api/enquiries", json=payload()).status_code == 202
+    assert len(sent) == 1
+    to, subject, text = sent[0]
+    assert to == "team@example.com" and subject.startswith("New enquiry:")
+    assert payload()["email"] in text and payload()["message"] in text
+
+    sent.clear()
+    assert api.post("/api/enquiries", json=payload(website="bot.example")).status_code == 202
+    assert sent == []

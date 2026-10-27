@@ -1,0 +1,71 @@
+# Applies Alembic migrations to the production database on every push to main.
+# Vercel has no reliable pre-deploy hook for the Python API, so this runs alongside each deploy.
+#
+# One-time setup: GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#   PRODUCTION_DATABASE_URL = the Supabase session-pooler URL (same as DATABASE_URL in backend/.env.production)
+#
+# Migrations must stay backward compatible (add tables/columns first, remove later), because the new
+# API version may go live on Vercel a minute before this job finishes.
+
+name: Migrate production database
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/migrations/**"
+      - "backend/app/db/**"
+      - "backend/requirements.txt"
+      - ".github/workflows/migrate-database.yml"
+  workflow_dispatch: # "Run workflow" button for manual runs
+
+# Never run two migrations at the same time; queue them instead.
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check the database secret is configured
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add the PRODUCTION_DATABASE_URL repository secret first."
+            exit 1
+          fi
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          ENVIRONMENT: development # only so config validation passes; migrations don't use app settings
+          APP_BASE_URL: https://vaultessa.vercel.app
+          CORS_ORIGINS: https://vaultessa.vercel.app
+        run: |
+          # The app config requires these secrets to load, but no migration uses them:
+          # throwaway random values, generated per run and never stored.
+          export JWT_ACCESS_SECRET="$(openssl rand -hex 32)"
+          export PRELOGIN_SECRET="$(openssl rand -hex 32)"
+          export MFA_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          python -m alembic upgrade head
+          python -m alembic current

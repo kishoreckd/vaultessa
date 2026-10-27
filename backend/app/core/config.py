@@ -105,6 +105,8 @@ class Settings(BaseSettings):
     # Public origin(s) of the web app; links in emails must start with one of these.
     app_base_url: str
 
+    # Inbox that receives a copy of every landing-page enquiry (unset = stored in the database only).
+    enquiry_notify_email: str | None = None
     enquiry_rate_limit_requests: int = Field(default=3, ge=1, le=100)
     enquiry_rate_limit_window_seconds: int = Field(default=3600, ge=60, le=86400)
 
