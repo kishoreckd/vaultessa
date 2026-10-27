@@ -19,6 +19,20 @@ export type NotificationPrefs = {
   expiry: boolean;
 };
 
+export type EmailSettings = {
+  recipient: string;
+  configured: boolean;
+  delivery: 'not_tested';
+  preferences: NotificationPrefs;
+  categories: {
+    key: 'security' | keyof NotificationPrefs;
+    title: string;
+    description: string;
+    events: string[];
+    required: boolean;
+  }[];
+};
+
 export type AccountChangePasswordRequest = {
   authHash: string;
   newAuthHash: string;

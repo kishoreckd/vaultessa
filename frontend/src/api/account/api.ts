@@ -8,6 +8,7 @@ import type {
   DeviceSession,
   AccountRevokeOthersResponse,
   NotificationPrefs,
+  EmailSettings,
 } from './types';
 import type { Account } from '../auth/types';
 
@@ -38,6 +39,7 @@ export const accountApi = {
       method: 'POST',
     }),
   notifications: () => apiFetch<NotificationPrefs>('/account/notifications'),
+  emailSettings: () => apiFetch<EmailSettings>('/account/notifications/details'),
   setNotifications: (body: NotificationPrefs) =>
     apiFetch<NotificationPrefs>('/account/notifications', {
       method: 'PUT',

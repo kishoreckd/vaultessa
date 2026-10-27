@@ -19,7 +19,7 @@ export function AccountSecurity() {
   const account = useSession((s) => s.account);
   const security = useQuery({ queryKey: ['account-security'], queryFn: accountApi.security });
   const sessions = useQuery({ queryKey: ['account-sessions'], queryFn: accountApi.sessions });
-  const prefs = useQuery({ queryKey: ['account-notifications'], queryFn: accountApi.notifications });
+  const prefs = useQuery({ queryKey: ['account-notifications'], queryFn: accountApi.emailSettings });
   const [setup, setSetup] = useState<{ secret: string; otpauthUri: string }>();
   const [qr, setQr] = useState('');
   const [code, setCode] = useState('');
@@ -181,29 +181,63 @@ export function AccountSecurity() {
           <CardTitle>Email notifications</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <p className="text-sm text-muted-foreground">Security alerts are always enabled.</p>
+          <p className="text-sm text-muted-foreground">
+            Choose which optional emails you receive. Changes save automatically.
+          </p>
+          {prefs.isPending && <p role="status" className="text-sm">Loading email preferences?</p>}
           {prefs.isError && (
-            <Button variant="outline" onClick={() => void prefs.refetch()}>
-              Retry preferences
-            </Button>
+            <div role="alert" className="grid gap-2">
+              <p className="text-sm">Email preferences could not be loaded.</p>
+              <Button variant="outline" onClick={() => void prefs.refetch()}>Retry preferences</Button>
+            </div>
           )}
-          {(['sharing', 'links', 'expiry'] as const).map((key) => (
-            <label key={key} className="flex items-center justify-between gap-3 text-sm">
-              {key === 'sharing'
-                ? 'Items shared with you and access changes'
-                : key === 'links' ? 'Activity on your share links' : 'Upcoming and expired vault items'}
-              <Switch
-                checked={prefs.data?.[key] ?? true}
-                disabled={busy || !prefs.data}
-                onCheckedChange={(checked) =>
-                  action.mutate(async () => {
-                    await accountApi.setNotifications({ ...prefs.data!, [key]: checked });
-                    toast.success('Notification preference saved');
-                  })
-                }
-              />
-            </label>
-          ))}
+          {prefs.data && (
+            <>
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                <p className="break-all">Receiving address: <strong>{prefs.data.recipient}</strong></p>
+                <p className="mt-1 text-muted-foreground">
+                  {prefs.data.configured
+                    ? 'Email service is configured. This does not confirm inbox delivery.'
+                    : 'Email delivery is currently unavailable. Your preferences will still be saved.'}
+                </p>
+              </div>
+              {prefs.data.categories.map((category) => {
+                const optionalKey = category.key === 'security' ? undefined : category.key;
+                const id = `email-preference-${category.key}`;
+                return (
+                  <div key={category.key} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <label htmlFor={id} className="font-medium">{category.title}</label>
+                        <p id={`${id}-description`} className="mt-1 text-sm text-muted-foreground">{category.description}</p>
+                      </div>
+                      <Switch
+                        id={id}
+                        aria-describedby={`${id}-description`}
+                        checked={optionalKey ? prefs.data!.preferences[optionalKey] : true}
+                        disabled={busy || category.required}
+                        onCheckedChange={(checked) => {
+                          if (!optionalKey) return;
+                          action.mutate(async () => {
+                            await accountApi.setNotifications({ ...prefs.data!.preferences, [optionalKey]: checked });
+                            toast.success('Email preference saved');
+                          });
+                        }}
+                      />
+                    </div>
+                    {category.required && <p className="mt-2 text-xs font-medium">Always enabled</p>}
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {category.events.map((event) => <li key={event}>{event}</li>)}
+                    </ul>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-muted-foreground">
+                Email notifications do not include your saved passwords, decrypted vault contents or recovery keys.
+                Expiry reminders depend on scheduled processing and may be delayed.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
       <Drawer

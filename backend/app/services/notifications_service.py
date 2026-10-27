@@ -30,6 +30,51 @@ class Category(StrEnum):
 
 OPTIONAL_CATEGORIES = (Category.SHARING, Category.LINKS, Category.EXPIRY)
 
+# Shared with the settings API so the UI describes actual server-side categories.
+EMAIL_CATEGORIES = [
+    {
+        "key": "security",
+        "title": "Account and security",
+        "required": True,
+        "description": "Required messages that help you access and protect your account.",
+        "events": [
+            "Email verification and welcome",
+            "Password recovery and recovery completion",
+            "Master password changes",
+            "Recovery key changes",
+            "New-device sign-ins",
+            "Temporary account lockouts",
+            "Two-step verification changes",
+            "Access token creation",
+        ],
+    },
+    {
+        "key": "sharing",
+        "title": "Shared items",
+        "required": False,
+        "description": "Updates about items other people share with you.",
+        "events": [
+            "An item is shared with you",
+            "Your shared-item permissions change",
+            "Your access is removed",
+        ],
+    },
+    {
+        "key": "links",
+        "title": "Share-link activity",
+        "required": False,
+        "description": "Activity on share links you created.",
+        "events": ["A share link is opened", "A link is locked after incorrect access codes"],
+    },
+    {
+        "key": "expiry",
+        "title": "Expiry reminders",
+        "required": False,
+        "description": "Reminders for vault items you own that have an expiry date.",
+        "events": ["An item is approaching its expiry date", "An item has expired"],
+    },
+]
+
 
 def preferences(user: User) -> dict[str, bool]:
     stored = user.notification_prefs or {}

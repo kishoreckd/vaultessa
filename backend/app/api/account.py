@@ -8,6 +8,7 @@ from app.core.rate_limit import auth_limit
 from app.schemas.account import (
     ChangePasswordRequest,
     DisableMethodRequest,
+    EmailSettingsOut,
     NotificationPrefs,
     NotificationPrefsRequest,
     ReauthRequest,
@@ -130,6 +131,17 @@ def revoke_others(request: Request, auth: Auth, db: DbSession):
 @router.get("/notifications", response_model=NotificationPrefs)
 def get_notifications(auth: Auth, db: DbSession):
     return NotificationPrefs(**notify.preferences(get_user(db, auth.user_id)))
+
+
+@router.get("/notifications/details", response_model=EmailSettingsOut)
+def email_notification_details(auth: Auth, db: DbSession):
+    user = get_user(db, auth.user_id)
+    return EmailSettingsOut(
+        recipient=user.email,
+        configured=email_enabled(),
+        preferences=NotificationPrefs(**notify.preferences(user)),
+        categories=notify.EMAIL_CATEGORIES,
+    )
 
 
 @router.put("/notifications", response_model=NotificationPrefs)

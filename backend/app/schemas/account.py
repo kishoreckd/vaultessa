@@ -68,5 +68,21 @@ class NotificationPrefsRequest(RequestModel):
     expiry: bool = True
 
 
+class EmailCategoryOut(ApiModel):
+    key: Literal["security", "sharing", "links", "expiry"]
+    title: str
+    description: str
+    events: list[str]
+    required: bool
+
+
+class EmailSettingsOut(ApiModel):
+    recipient: str
+    configured: bool
+    delivery: Literal["not_tested"] = "not_tested"
+    preferences: NotificationPrefs
+    categories: list[EmailCategoryOut]
+
+
 class RevokeSessionsResponse(ApiModel):
     revoked: int
