@@ -249,7 +249,7 @@ export function AccountSecurity() {
           }
         }}
         title="Set up authenticator"
-        description="Scan with your authenticator app, then enter its six-digit code."
+        description="Scan with your authenticator app, then enter its six-digit code. Codes refresh every 30 seconds. After setup, sign in with your master password followed by this code."
       >
         {setup && (
           <form

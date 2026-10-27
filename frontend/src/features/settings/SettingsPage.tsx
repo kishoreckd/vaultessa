@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Lock, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { FormField } from '@/components/common/form-field';
 import { PageHeader } from '@/components/common/page';
 import { ShortcutsList } from '@/components/layout/shortcuts-dialog';
@@ -157,6 +157,15 @@ export function SettingsPage() {
         <VaultRecovery />
       </div>
       <ImportExport />
+
+      <Section title="Advanced" description="Tools for integrations and automation.">
+        <p className="mb-4 text-sm text-muted-foreground">
+          Manage access tokens for CLI tools and automated scripts. Only create tokens for tools you trust.
+        </p>
+        <Button variant="outline" asChild>
+          <Link to="/vault/developer">Developer access</Link>
+        </Button>
+      </Section>
 
       <Section
         title="Encryption"

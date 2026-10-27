@@ -161,9 +161,6 @@ export function AppLayout() {
                 <DropdownMenuItem onSelect={() => navigate('/vault/activity')}>
                   <Activity /> Activity log
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => navigate('/vault/developer')}>
-                  <Keyboard /> Developer access
-                </DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Sun /> Theme

@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
+import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { Label } from '@/components/ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { TextField } from '@/components/common/form-field';
 import { PasswordInput } from '@/components/common/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -69,6 +72,10 @@ export function LoginPage() {
               setError('Enter your verification code.');
               return;
             }
+            if (method === 'totp' && !/^\d{6}$/.test(code)) {
+              setError('Enter the six-digit code from your authenticator app.');
+              return;
+            }
             setBusy(true);
             setError(null);
             try {
@@ -103,15 +110,41 @@ export function LoginPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <TextField
-            label={method === 'totp' ? 'Authenticator code' : 'Recovery code'}
+          {method === 'totp' ? (
+            <div className="grid gap-2">
+              <Label htmlFor="login-authenticator-code">Authenticator code</Label>
+              <InputOTP
+                id="login-authenticator-code"
+                maxLength={6}
+                pattern={REGEXP_ONLY_DIGITS}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                value={code}
+                onChange={setCode}
+                disabled={busy}
+                pasteTransformer={(text) => text.replace(/\D/g, '')}
+                aria-describedby="authenticator-code-hint"
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} />)}
+                </InputOTPGroup>
+              </InputOTP>
+              <p id="authenticator-code-hint" className="text-xs text-muted-foreground">
+                Use your authenticator app. Codes refresh every 30 seconds and are not sent by email.
+                If a code fails, wait for the next one and check that your device time is set automatically.
+              </p>
+            </div>
+          ) : <TextField
+            label="Recovery code"
             required
             autoFocus
             value={code}
             onChange={(e) => setCode(e.target.value)}
             autoComplete="one-time-code"
-            inputMode={method === 'totp' ? 'numeric' : 'text'}
-          />
+            inputMode="text"
+          />}
           <Button disabled={busy} type="submit">
             {busy ? 'Verifying…' : 'Verify and unlock'}
           </Button>
