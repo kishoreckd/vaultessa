@@ -19,7 +19,6 @@ export function StrengthMeter({ strength, className }: { strength: Strength; cla
       </div>
       <p className="text-xs text-muted-foreground">
         Strength: <span className="font-medium text-foreground">{strength.label}</span>
-        {strength.entropyBits > 0 && ` · ~${strength.entropyBits} bits`}
       </p>
     </div>
   );

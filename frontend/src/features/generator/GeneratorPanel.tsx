@@ -1,3 +1,4 @@
+import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
 import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ const GROUPS = [
 ] as const;
 
 export function GeneratorPanel({ onUse }: { onUse?: (value: string) => void }) {
+  useStrengthEstimator();
   const id = useId();
   const [mode, setMode] = useState('password');
   const [length, setLength] = useState(20);

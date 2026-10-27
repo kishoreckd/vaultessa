@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { loadStrengthEstimator } from '../src/lib/crypto/strength';
+import { estimateStrength } from '../src/lib/crypto/strength';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { type Permission } from '../src/api/sharing/types';
 import { analyzeHealth } from '../src/features/security/passwordHealth';
 import { cleanPayload, getField, setField, TEMPLATES } from '../src/features/vault/secretTemplates';
 import type { DecryptedItem } from '../src/features/vault/vaultTypes';
+
+beforeAll(() => loadStrengthEstimator());
 
 const NOW = Date.parse('2026-10-20T00:00:00Z');
 
@@ -35,6 +39,41 @@ function item(
 }
 
 describe('password health', () => {
+  it('prioritizes known exposure and rejects breach results for changed passwords', () => {
+    const strong = 'Xk9#mQ2$vL7@pR4!wN8z';
+    const entries = [item('exposed', strong), item('weak', 'main@123')];
+    const results = new Map([['exposed', { password: strong, count: 42 }]]);
+    const report = analyzeHealth(entries, NOW, results);
+    expect(report.breached).toHaveLength(1);
+    expect(report.breachChecked).toBe(1);
+    expect(report.attention[0]!.item.id).toBe('exposed');
+    expect(report.score).toBe(0);
+    const updated = analyzeHealth([item('exposed', 'Zt5^bH1*eY6&uJ3(kD0q')], NOW, results);
+    expect(updated.breached).toHaveLength(0);
+    expect(updated.breachChecked).toBe(0);
+    expect(updated.score).toBe(100);
+  });
+
+  it('does not treat failed breach checks as a completed clear result', () => {
+    const password = 'Xk9#mQ2$vL7@pR4!wN8z';
+    const report = analyzeHealth([item('one', password)], NOW, new Map([['one', { password, count: null }]]));
+    expect(report.breachChecked).toBe(0);
+    expect(report.breached).toHaveLength(0);
+  });
+  it.each(['qwertyuiop', 'p@ssw0rd!', 'aaaaaaaaaaaa', '1234567890'])(
+    'recognizes dictionary and predictable patterns: %s',
+    (password) => expect(estimateStrength(password).score).toBeLessThan(2),
+  );
+  it.each(['welcome@123', 'main@123', 'kishore@994079', 'Kishore@994079!', '994079@Kishore']) (
+    'flags a predictable word/name and number pattern: %s',
+    (password) => {
+      const report = analyzeHealth([item('predictable', password)], NOW);
+      expect(report.weak).toHaveLength(1);
+      expect(report.byId.get('predictable')!.strength.score).toBeLessThan(2);
+      expect(report.score).toBe(0);
+    },
+  );
+
   it('flags weak, reused and old passwords and scores the rest', () => {
     const report = analyzeHealth(
       [
@@ -52,7 +91,26 @@ describe('password health', () => {
     expect(report.reused.map((h) => h.item.id).sort()).toEqual(['reuse-a', 'reuse-b']);
     expect(report.reused[0]!.reusedCount).toBe(2);
     expect(report.old.map((h) => h.item.id)).toEqual(['old']);
-    expect(report.score).toBe(20); // only "strong" is healthy
+    expect(report.score).toBe(40); // strong and old-but-strong both pass
+    expect(report.attention).toHaveLength(3);
+    expect(report.byId.get('old')!.issues).toEqual([]);
+  });
+
+  it('does not penalize a strong unique password for item age or expiry', () => {
+    const entry = item('old', 'Zt5^bH1*eY6&uJ3(kD0q', { updatedAt: '2024-01-01T00:00:00Z' });
+    const report = analyzeHealth([{ ...entry, expiresAt: '2025-01-01T00:00:00Z' }], NOW);
+    expect(report.score).toBe(100);
+    expect(report.attention).toHaveLength(0);
+    expect(report.old).toHaveLength(1);
+  });
+
+  it('counts overlapping weaknesses once and prioritizes weak reused passwords', () => {
+    const report = analyzeHealth([
+      item('good', 'Xk9#mQ2$vL7@pR4!wN8z'), item('weak-a', 'password1'), item('weak-b', 'password1'),
+    ], NOW);
+    expect(report.score).toBe(33);
+    expect(report.attention).toHaveLength(2);
+    expect(report.attention[0]!.issues).toEqual(['weak', 'reused']);
   });
 
   it('ignores login-only shares and is 100 when nothing to check', () => {

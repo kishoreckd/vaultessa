@@ -13,6 +13,7 @@ import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/api/client';
 import { emailError, requiredText } from '@/lib/validation';
 import { estimateStrength } from '@/lib/crypto';
+import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
 import { cn } from '@/lib/utils';
 import { authDestination } from '@/lib/auth-destination';
 import { AuthCard } from './AuthCard';
@@ -34,6 +35,7 @@ function Requirement({ met, children }: { met: boolean; children: string }) {
 }
 
 export function RegisterPage() {
+  const strengthEstimator = useStrengthEstimator();
   const navigate = useNavigate();
   const location = useLocation();
   const destination = authDestination(location.state);
@@ -45,7 +47,7 @@ export function RegisterPage() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const strength = useMemo(() => estimateStrength(password), [password]);
+  const strength = useMemo(() => estimateStrength(password), [password, strengthEstimator.data]);
 
   const longEnough = password.length >= MIN_LENGTH;
   const strongEnough = strength.score >= 2;
@@ -137,6 +139,12 @@ export function RegisterPage() {
             }}
           />
           {password && <StrengthMeter strength={strength} />}
+          {strengthEstimator.isError && (
+            <div role="alert" className="grid gap-2 text-sm">
+              <p>Could not load password strength checks. Retry before creating your vault.</p>
+              <Button type="button" variant="outline" onClick={() => void strengthEstimator.refetch()}>Retry checks</Button>
+            </div>
+          )}
         </div>
         <PasswordInput
           label="Confirm master password"

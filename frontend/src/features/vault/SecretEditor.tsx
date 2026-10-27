@@ -1,3 +1,4 @@
+import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
 import { useId, useState, type FormEvent } from 'react';
 import { LoaderCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,6 +33,7 @@ type Props = {
 
 /** Create / edit an item in a right-side drawer. */
 export function SecretEditorDrawer({ open, onOpenChange, existing, ...rest }: Props) {
+  useStrengthEstimator();
   const formId = useId();
   const save = useSaveSecret();
   return (

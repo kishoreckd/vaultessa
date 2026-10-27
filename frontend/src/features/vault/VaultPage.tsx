@@ -1,3 +1,4 @@
+import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
 import {
   useEffect,
   useMemo,
@@ -107,6 +108,7 @@ function matchesSearch(item: DecryptedItem, query: string) {
 type EditorState = { open: boolean; item?: DecryptedItem; type?: SecretType };
 
 export function VaultPage() {
+  const estimator = useStrengthEstimator();
   const items = useVaultItems();
   const folders = useFolders();
   const createFolder = useCreateFolder();
@@ -127,7 +129,7 @@ export function VaultPage() {
   const listRef = useRef<HTMLDivElement>(null);
 
   const all = useMemo(() => items.data ?? [], [items.data]);
-  const health = useMemo(() => analyzeHealth(all), [all]);
+  const health = useMemo(() => analyzeHealth(estimator.data ? all : []), [all, estimator.data]);
   const links = useExternalShares();
   const linkInsights = useMemo(() => summarizeLinks(links.data), [links.data]);
   const visible = useMemo(

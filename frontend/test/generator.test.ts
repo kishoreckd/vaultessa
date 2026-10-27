@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { loadStrengthEstimator } from '../src/lib/crypto/strength';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_GENERATOR_OPTIONS, estimateStrength, generatePassword, randomInt } from '../src/lib/crypto';
 import { safeHref } from '../src/features/vault/vaultTypes';
+
+beforeAll(() => loadStrengthEstimator());
 
 describe('password generator', () => {
   it('respects length and includes every selected character class', () => {
