@@ -71,7 +71,7 @@ export async function register(input: { name: string; email: string; password: s
 
 export type PendingMfa = {
   challenge: MfaChallenge;
-  complete: (method: 'totp' | 'recovery', code: string) => Promise<void>;
+  complete: (method: 'totp' | 'recovery', code: string, rememberDevice?: boolean) => Promise<void>;
 };
 
 export async function login(emailInput: string, password: string): Promise<PendingMfa | undefined> {
@@ -82,8 +82,8 @@ export async function login(emailInput: string, password: string): Promise<Pendi
   if ('mfaRequired' in res) {
     return {
       challenge: res,
-      complete: async (method, code) => {
-        const result = await authApi.mfa({ mfaToken: res.mfaToken, method, code });
+      complete: async (method, code, rememberDevice = false) => {
+        const result = await authApi.mfa({ mfaToken: res.mfaToken, method, code, rememberDevice });
         setAccessToken(result.accessToken);
         if (result.account.emailVerified)
           useSession.getState().unlock(result.account, await unwrapAccountKeys(masterKey, result.account));

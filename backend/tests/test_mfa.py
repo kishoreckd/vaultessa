@@ -169,3 +169,44 @@ def test_sessions_list_and_revoke(api):
     assert api.get("/api/secrets", headers={"Authorization": f"Bearer {second}"}).status_code == 401
     current = next(s for s in sessions if s["current"])
     assert api.delete(f"/api/account/sessions/{current['id']}", headers=alice.headers).status_code == 400
+
+
+def test_remember_device_skips_only_the_two_step_code(api):
+    alice = register(api, "alice")
+    secret, _, counter = _enable_totp(api, alice)
+    token = response_data(_login(api, alice))["mfaToken"]
+    remembered = api.post(
+        "/api/auth/login/mfa",
+        json={
+            "mfaToken": token,
+            "method": "totp",
+            "code": totp.code_at(secret, counter + 1),
+            "rememberDevice": True,
+        },
+    )
+    assert remembered.status_code == 200
+    assert "pv_trusted" in api.cookies
+
+    # Same browser: master password still required, but no code.
+    again = response_data(_login(api, alice))
+    assert "accessToken" in again and "mfaToken" not in again
+    wrong = api.post("/api/auth/login", json={"email": alice.email, "authHash": b64("wrong")})
+    assert wrong.status_code == 401
+
+    # "Sign out other devices" forgets every remembered browser.
+    headers = {"Authorization": f"Bearer {again['accessToken']}"}
+    assert api.post("/api/account/sessions/revoke-others", headers=headers).status_code in (200, 204)
+    assert "mfaToken" in response_data(_login(api, alice))
+
+
+def test_other_browsers_still_need_the_code(api):
+    alice = register(api, "alice")
+    secret, _, counter = _enable_totp(api, alice)
+    token = response_data(_login(api, alice))["mfaToken"]
+    api.post(
+        "/api/auth/login/mfa",
+        json={"mfaToken": token, "method": "totp", "code": totp.code_at(secret, counter + 1)},
+    )
+    assert "pv_trusted" not in api.cookies  # not remembered unless asked
+    api.cookies.set("pv_trusted", "forged-token", path="/api/auth")
+    assert "mfaToken" in response_data(_login(api, alice))

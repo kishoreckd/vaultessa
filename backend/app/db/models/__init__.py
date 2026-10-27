@@ -16,6 +16,7 @@ from app.db.models.secret_access_model import SecretAccess
 from app.db.models.secret_history_model import SecretHistory
 from app.db.models.secret_model import Secret
 from app.db.models.session_model import UserSession
+from app.db.models.trusted_device_model import TrustedDevice
 from app.db.models.user_model import User
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "Organization",
     "User",
     "UserSession",
+    "TrustedDevice",
     "Folder",
     "Secret",
     "SecretAccess",

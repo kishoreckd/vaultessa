@@ -9,6 +9,7 @@ from app.core.security import hash_auth_key, seal, unseal, verify_auth_key
 from app.db.models.session_model import UserSession
 from app.db.models.user_model import User
 from app.schemas.account import ChangePasswordRequest
+from app.services import trusted_device_service
 
 
 def require_master_password(user: User, auth_hash: str) -> None:
@@ -134,4 +135,6 @@ def revoke_other_sessions(db: Session, user_id: uuid.UUID, current_id: uuid.UUID
     result = db.execute(
         delete(UserSession).where(UserSession.user_id == user_id, UserSession.id != current_id)
     )
+    # Signed-out devices must not skip the two-step code next time (this browser asks again once too).
+    trusted_device_service.forget_all(db, user_id)
     return result.rowcount or 0

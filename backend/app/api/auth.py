@@ -22,7 +22,7 @@ from app.schemas.auth import (
 from app.services import account_service as account_service
 from app.services import auth_service as service
 from app.services import notifications_service as notify
-from app.services import recovery_service
+from app.services import recovery_service, trusted_device_service
 from app.services.audit_service import AuditAction, client_meta, record
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -35,6 +35,19 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         token,
         max_age=settings.refresh_token_ttl_days * 24 * 60 * 60,
         path=REFRESH_COOKIE_PATH,
+        secure=settings.is_production,
+        httponly=True,
+        samesite="strict",
+    )
+
+
+def _set_trusted_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        settings.trusted_device_cookie_name,
+        token,
+        max_age=settings.trusted_device_days * 24 * 60 * 60,
+        path=REFRESH_COOKIE_PATH,  # only sent to /api/auth (login), never to other APIs
         secure=settings.is_production,
         httponly=True,
         samesite="strict",
@@ -117,6 +130,10 @@ def login(
         return error_response(AppError.unauthorized("Invalid email or master password"), background)
 
     if user.mfa_required:
+        # A remembered browser skips only the two-step code; the master password was just checked.
+        trusted = request.cookies.get(get_settings().trusted_device_cookie_name)
+        if trusted_device_service.is_trusted(db, user, trusted):
+            return _complete_login(db, request, response, background, user, "trusted_device")
         # No session yet: the client must complete the second step with this short-lived token.
         return MfaChallenge(
             mfa_token=create_mfa_token(user.id, user.auth_hash),
@@ -138,7 +155,12 @@ def login_mfa(
     if not account_service.verify_second_factor(user, body.method, body.code):
         _fail_attempt(db, request, background, user, {"step": "mfa", "method": body.method})
         return error_response(AppError.unauthorized("That code isn't right. Try again."), background)
-    result = _complete_login(db, request, response, background, user, body.method)
+    trusted_token = (
+        trusted_device_service.remember(db, user, client_meta(request)[1]) if body.remember_device else None
+    )
+    result = _complete_login(db, request, response, background, user, body.method)  # commits
+    if trusted_token:
+        _set_trusted_cookie(response, trusted_token)
     if body.method == "recovery":
         notify.recovery_code_used(
             background, user, len(user.mfa_recovery_hashes or []), *client_meta(request)

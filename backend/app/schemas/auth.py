@@ -68,6 +68,8 @@ class LoginMfaRequest(RequestModel):
     mfa_token: Annotated[str, StringConstraints(max_length=2048)]
     method: MfaMethod
     code: Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)] | None = None
+    # Skip the two-step code on this browser for `trusted_device_days` (master password still required).
+    remember_device: bool = False
 
 
 class TokenResponse(ApiModel):

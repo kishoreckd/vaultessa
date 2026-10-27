@@ -44,4 +44,6 @@ export type AuthMfaRequest = {
   mfaToken: string;
   method: 'totp' | 'recovery';
   code?: string;
+  /** skip the two-step code on this browser for 30 days (master password still required) */
+  rememberDevice?: boolean;
 };

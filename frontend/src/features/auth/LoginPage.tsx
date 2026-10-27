@@ -8,6 +8,7 @@ import { TextField } from '@/components/common/form-field';
 import { PasswordInput } from '@/components/common/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFormErrors } from '@/hooks/useFormErrors';
 import { ApiError } from '@/api/client';
@@ -27,6 +28,7 @@ export function LoginPage() {
   const [pending, setPending] = useState<PendingMfa>();
   const [method, setMethod] = useState<'totp' | 'recovery'>('totp');
   const [code, setCode] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(false);
   const { formRef, errors, validate, clear } = useFormErrors<'email' | 'password'>();
 
   async function onSubmit(event: FormEvent) {
@@ -79,7 +81,7 @@ export function LoginPage() {
             setBusy(true);
             setError(null);
             try {
-              await pending.complete(method, code.trim());
+              await pending.complete(method, code.trim(), rememberDevice);
               setPending(undefined);
               navigate(destination, { replace: true });
             } catch (err) {
@@ -145,6 +147,23 @@ export function LoginPage() {
             autoComplete="one-time-code"
             inputMode="text"
           />}
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="remember-device"
+              checked={rememberDevice}
+              disabled={busy}
+              onCheckedChange={(value) => setRememberDevice(value === true)}
+              aria-describedby="remember-device-hint"
+            />
+            <div className="grid gap-0.5">
+              <Label htmlFor="remember-device" className="font-normal">
+                Remember this device for 30 days
+              </Label>
+              <p id="remember-device-hint" className="text-xs text-muted-foreground">
+                You’ll still enter your master password. Only use this on your own device.
+              </p>
+            </div>
+          </div>
           <Button disabled={busy} type="submit">
             {busy ? 'Verifying…' : 'Verify and unlock'}
           </Button>

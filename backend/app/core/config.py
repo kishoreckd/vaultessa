@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # The "recovery code used" email also asks to replace codes once this many (or fewer) are left.
     recovery_codes_low_threshold: int = Field(default=5, ge=0, le=50)
     refresh_cookie_name: str = Field(default="pv_refresh", pattern=r"^[A-Za-z0-9_-]+$")
+    # "Remember this device": skip the two-step code (never the master password) on a trusted browser.
+    trusted_device_days: int = Field(default=30, ge=1, le=90)
+    trusted_device_cookie_name: str = Field(default="pv_trusted", pattern=r"^[A-Za-z0-9_-]+$")
 
     rate_limit_window_seconds: int = Field(default=60, gt=0)
     rate_limit_global_requests: int = Field(default=300, gt=0)

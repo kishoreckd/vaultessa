@@ -82,7 +82,12 @@ it('keeps the vault locked until the MFA challenge succeeds', async () => {
   await expect(pending!.complete('totp', '000000')).rejects.toThrow('Wrong code');
   expect(useSession.getState().keys).toBeNull();
   await pending!.complete('recovery', 'fixture-code');
-  expect(mfa).toHaveBeenLastCalledWith({ mfaToken: 'challenge', method: 'recovery', code: 'fixture-code' });
+  expect(mfa).toHaveBeenLastCalledWith({
+    mfaToken: 'challenge',
+    method: 'recovery',
+    code: 'fixture-code',
+    rememberDevice: false,
+  });
   expect(useSession.getState().status).toBe('unlocked');
 });
 

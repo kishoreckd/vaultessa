@@ -1,4 +1,5 @@
 """Add private landing-page enquiries storage."""
+
 import sqlalchemy as sa
 from alembic import op
 
