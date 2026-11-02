@@ -63,6 +63,7 @@ export function rememberUnlock(
     // Persist only non-extractable CryptoKey objects, never raw keys or the master password.
     if (
       !account.emailVerified ||
+      !keys.folderNameKey || keys.folderNameKey.extractable ||
       keys.vaultKey.extractable ||
       keys.privateKey.extractable ||
       expiresAt <= Date.now()
@@ -95,6 +96,8 @@ export async function restoreUnlock(account: Account): Promise<Entry | null> {
       Number.isFinite(entry.expiresAt) &&
       entry.expiresAt > Date.now() &&
       entry.expiresAt <= Date.now() + REMEMBER_UNLOCK_MS &&
+      entry.keys.folderNameKey?.algorithm.name === "HMAC" &&
+      !entry.keys.folderNameKey.extractable &&
       !entry.keys.vaultKey.extractable &&
       !entry.keys.privateKey.extractable &&
       entry.keys.vaultKey.type === "secret" &&

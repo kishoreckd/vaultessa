@@ -7,6 +7,7 @@ import {
   EyeOff,
   History,
   Link2,
+  LoaderCircle,
   Lock,
   Pencil,
   Star,
@@ -63,15 +64,17 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
 
   async function onDelete() {
     const ok = await confirmAction({
-      title: `Delete “${data.name}”?`,
-      description: 'It will be removed from your vault and for everyone it is shared with. This cannot be undone.',
-      confirmLabel: 'Delete item',
+      title: `Move to Trash: “${data.name}”?`,
+      description: 'This item moves to Trash, where you can restore it. Shared access and links will be revoked.',
+      confirmLabel: 'Move to Trash',
       destructive: true,
     });
     if (!ok) return;
-    await remove.mutateAsync(item.id);
-    toast.success(`Deleted “${data.name}”`);
-    onClosed();
+    try {
+      await remove.mutateAsync(item.id);
+      toast.success(`Moved to Trash: “${data.name}”`, { icon: <Trash2 className="size-4 text-destructive" /> });
+      onClosed();
+    } catch { /* Global mutation feedback displays the error. */ }
   }
 
   async function onLeave() {
@@ -83,9 +86,11 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
       destructive: true,
     });
     if (!ok) return;
-    await leave.mutateAsync({ secretId: item.id, userId });
-    toast.success(`Removed “${data.name}”`);
-    onClosed();
+    try {
+      await leave.mutateAsync({ secretId: item.id, userId });
+      toast.success(`Removed “${data.name}”`, { icon: <Trash2 className="size-4 text-destructive" /> });
+      onClosed();
+    } catch { /* Global mutation feedback displays the error. */ }
   }
 
   return (
@@ -187,8 +192,8 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
             <History /> History
           </Button>
         )}
-        <Button variant="destructive" className="ml-auto" disabled={remove.isPending} onClick={item.isOwner ? onDelete : onLeave}>
-          <Trash2 /> {item.isOwner ? 'Delete' : 'Remove'}
+        <Button variant="destructive" className="ml-auto min-h-11" disabled={remove.isPending || leave.isPending} onClick={item.isOwner ? onDelete : onLeave}>
+          {remove.isPending || leave.isPending ? <LoaderCircle className="animate-spin" /> : <Trash2 />} {remove.isPending ? 'Moving to Trash...' : leave.isPending ? 'Removing...' : item.isOwner ? 'Move to Trash' : 'Remove'}
         </Button>
       </CardFooter>
 

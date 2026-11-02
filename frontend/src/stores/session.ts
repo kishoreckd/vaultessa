@@ -15,6 +15,7 @@ try {
 } catch { /* Restricted browser contexts fall back to locking this tab. */ }
 
 export type VaultKeys = {
+  folderNameKey?: CryptoKey;
   /** AES-GCM, non-extractable — wraps secret keys and folder names */
   vaultKey: CryptoKey;
   /** RSA-OAEP, non-extractable — unwraps keys shared with this user */

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { foldersApi } from '@/api/folders/api';
@@ -5,7 +6,7 @@ import { secretsApi } from '@/api/vault/api';
 import { sharingApi } from '@/api/sharing/api';
 import { type Permission } from '@/api/sharing/types';
 import { type SecretType } from '@/api/vault/types';
-import { decryptJson, decryptString, encryptString } from '../../lib/crypto';
+import { decryptJson, decryptString, encryptString, folderNameFingerprint, normalizeFolderName } from '../../lib/crypto';
 import { requireKeys } from '../../stores/session';
 import {
   decryptItem,
@@ -20,6 +21,7 @@ import type { DecryptedFolder, DecryptedItem, SecretPayload } from './vaultTypes
 export const vaultKeys = {
   items: ['vault', 'items'] as const,
   folders: ['vault', 'folders'] as const,
+  trash: ['vault', 'trash'] as const,
   shares: (id: string) => ['vault', 'shares', id] as const,
   history: (id: string) => ['vault', 'history', id] as const,
 };
@@ -35,14 +37,9 @@ export function useFolders() {
   return useQuery({
     queryKey: vaultKeys.folders,
     queryFn: async (): Promise<DecryptedFolder[]> => {
-      const { vaultKey } = requireKeys();
       const folders = await foldersApi.list();
-      return Promise.all(
-        folders.map(async (f) => ({
-          id: f.id,
-          name: await decryptString(vaultKey, f.encryptedName).catch(() => 'Unreadable folder'),
-        })),
-      );
+      return readFolders(folders);
+
     },
   });
 }
@@ -98,7 +95,10 @@ export function useDeleteSecret() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => secretsApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: vaultKeys.items }),
+      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+    ]),
   });
 }
 
@@ -114,6 +114,21 @@ export function useDeleteSecrets() {
         catch { failed.push(id); }
       }
       return { deleted, failed };
+    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: vaultKeys.items }),
+      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+    ]),
+  });
+}
+
+/** Preserve failed selections so a partial move can be retried. */
+export function useMoveSecrets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
+      if (!ids.length) return { moved: [], failed: [] };
+      return secretsApi.move(ids, folderId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
   });
@@ -132,7 +147,20 @@ export function useLeaveShare() {
 export function useCreateFolder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => foldersApi.create(await encryptString(requireKeys().vaultKey, name)),
+    meta: { silentError: true },
+    mutationFn: async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error('Enter a folder name');
+      // Check readable legacy names locally; the fingerprint constraint also prevents races.
+      const { vaultKey, folderNameKey } = requireKeys();
+      if (!folderNameKey) throw new Error('Lock and unlock your vault to enable folder protection');
+      const existing = await readFolders(await foldersApi.list());
+      if (existing.some(folder => normalizeFolderName(folder.name) === normalizeFolderName(trimmed))) {
+        throw new Error('A folder with this name already exists');
+      }
+      return foldersApi.create(await encryptString(vaultKey, trimmed), await folderNameFingerprint(folderNameKey, trimmed));
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not create folder'),
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.folders }),
   });
 }
@@ -141,10 +169,10 @@ export function useDeleteFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => foldersApi.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: vaultKeys.folders });
-      qc.invalidateQueries({ queryKey: vaultKeys.items });
-    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: vaultKeys.folders }),
+      qc.invalidateQueries({ queryKey: vaultKeys.items }),
+    ]),
   });
 }
 
@@ -225,4 +253,61 @@ export function useShareMutations(item: DecryptedItem) {
       onSuccess: invalidate,
     }),
   };
+}
+
+
+async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>): Promise<DecryptedFolder[]> {
+  const { vaultKey, folderNameKey } = requireKeys();
+  const readable = await Promise.all(folders.map(async folder => {
+    try { return { id: folder.id, name: await decryptString(vaultKey, folder.encryptedName), readable: true }; }
+    catch { return { id: folder.id, name: 'Unreadable folder', readable: false }; }
+  }));
+  if (folderNameKey) {
+    const missing = folders.filter(folder => !folder.nameFingerprint);
+    const entries = await Promise.all(missing.flatMap(folder => {
+      const value = readable.find(item => item.id === folder.id);
+      return value?.readable ? [folderNameFingerprint(folderNameKey, value.name).then(nameFingerprint => ({ id: folder.id, nameFingerprint }))] : [];
+    }));
+    for (let offset = 0; offset < entries.length; offset += 1000) {
+      await foldersApi.registerFingerprints(entries.slice(offset, offset + 1000));
+    }
+  }
+  return readable.map(({ id, name }) => ({ id, name }));
+}
+
+export function useRenameFolder() {
+  const qc = useQueryClient();
+  return useMutation({
+    meta: { silentError: true },
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error('Enter a folder name');
+      const { vaultKey, folderNameKey } = requireKeys();
+      if (!folderNameKey) throw new Error('Lock and unlock your vault to enable folder protection');
+      const existing = await readFolders(await foldersApi.list());
+      if (existing.some(folder => folder.id !== id && normalizeFolderName(folder.name) === normalizeFolderName(trimmed))) {
+        throw new Error('A folder with this name already exists');
+      }
+      return foldersApi.rename(id, await encryptString(vaultKey, trimmed), await folderNameFingerprint(folderNameKey, trimmed));
+    },
+    onError: error => toast.error(error instanceof Error ? error.message : 'Could not rename folder'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.folders }),
+  });
+}
+
+export function useTrashItems() {
+  return useQuery({ queryKey: vaultKeys.trash,
+    queryFn: async () => Promise.all((await secretsApi.trash()).map(decryptItem)),
+  });
+}
+
+export function useTrashAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, permanent }: { id: string; permanent: boolean }) => permanent ? secretsApi.purge(id) : secretsApi.restore(id),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: vaultKeys.items }),
+      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+    ]),
+  });
 }

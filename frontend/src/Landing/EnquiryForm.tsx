@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type SubmitEvent } from "react";
 import { ArrowRight, Check, MessageCircle } from "lucide-react";
 import { apiFetch, ApiError } from "@/api/client";
 import { trackEnquirySuccess } from "@/analytics/Analytics";
@@ -12,7 +12,7 @@ export function EnquiryForm() {
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current) return;
     const form = event.currentTarget;

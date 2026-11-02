@@ -1,5 +1,6 @@
 import {
   DEFAULT_KDF_ITERATIONS,
+  deriveFolderNameKey,
   decryptBytes,
   deriveAuthHash,
   deriveKek,
@@ -30,11 +31,12 @@ async function unwrapAccountKeys(masterKey: CryptoKey, account: Account): Promis
   const kek = await deriveKek(masterKey);
   const vaultKeyBytes = await decryptBytes(kek, account.protectedVaultKey); // throws on wrong password
   const vaultKey = await importAesKey(vaultKeyBytes);
+  const folderNameKey = await deriveFolderNameKey(vaultKeyBytes);
   vaultKeyBytes.fill(0);
   const pkcs8 = await decryptBytes(vaultKey, account.protectedPrivateKey);
   const privateKey = await importPrivateKey(pkcs8);
   pkcs8.fill(0);
-  return { vaultKey, privateKey };
+  return { vaultKey, privateKey, folderNameKey };
 }
 
 export async function register(input: { name: string; email: string; password: string }) {
@@ -46,6 +48,7 @@ export async function register(input: { name: string; email: string; password: s
   const vaultKeyBytes = generateAesKeyBytes();
   const protectedVaultKey = await encryptBytes(kek, vaultKeyBytes);
   const vaultKey = await importAesKey(vaultKeyBytes);
+  const folderNameKey = await deriveFolderNameKey(vaultKeyBytes);
   vaultKeyBytes.fill(0);
 
   const { publicKey, privateKeyPkcs8 } = await generateRsaKeyPair();
@@ -65,7 +68,7 @@ export async function register(input: { name: string; email: string; password: s
   });
   setAccessToken(res.accessToken);
   sessionStorage.setItem(`recovery-setup:${res.account.id}`, 'pending');
-  if (res.account.emailVerified) useSession.getState().unlock(res.account, { vaultKey, privateKey });
+  if (res.account.emailVerified) useSession.getState().unlock(res.account, { vaultKey, privateKey, folderNameKey });
   else useSession.getState().setLocked(res.account);
 }
 

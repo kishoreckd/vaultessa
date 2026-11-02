@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type SubmitEvent, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import { Ban, CircleAlert, Clock, Copy, Eye, EyeOff, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -61,7 +61,7 @@ export function GuestSharePage() {
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Could not load this link.'));
   }, [id]);
 
-  async function onOpen(event: FormEvent) {
+  async function onOpen(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!info) return;
     setOpenError(null);

@@ -1,5 +1,5 @@
 import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type SubmitEvent } from 'react';
 import { LoaderCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
@@ -103,7 +103,7 @@ function SecretForm({
     clear(key);
   };
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const checks: Record<string, string | null> = {
       name: data.name.trim() ? null : 'Give this item a name.',

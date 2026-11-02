@@ -19,7 +19,7 @@ it('continues after individual failures and identifies exactly which items need 
   expect(await mocks.options.mutationFn(['one', 'two', 'three'])).toEqual({ deleted: ['one', 'three'], failed: ['two'] });
   expect(mocks.remove.mock.calls).toEqual([['one'], ['two'], ['three']]);
   mocks.options.onSuccess();
-  expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ['vault', 'items'] });
+  expect(mocks.invalidate.mock.calls).toEqual([[{ queryKey: ['vault', 'items'] }], [{ queryKey: ['vault', 'trash'] }]]);
 });
 
 it('reports all failures without claiming any successful deletions', async () => {

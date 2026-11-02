@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type SubmitEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, CircleCheck, Circle, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,7 +56,7 @@ export function RegisterPage() {
     'name' | 'email' | 'password' | 'confirm' | 'ack'
   >();
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setError(null);

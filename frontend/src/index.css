@@ -147,3 +147,18 @@
     @apply font-sans;
     }
 }
+/* Indeterminate request feedback respects reduced-motion preferences. */
+@keyframes request-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
+.app-request-progress { animation: request-progress 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .app-request-progress { animation: none; transform: none; width: 100%; }
+}
+/* Keep dismiss controls inside the toast on narrow screens. */
+[data-sonner-toast].cn-toast { padding-right: 3.5rem; }
+[data-sonner-toast] .cn-toast-close {
+  left: auto; right: 0.375rem; top: 0.375rem; transform: none;
+  width: 2.5rem; height: 2.5rem;
+}

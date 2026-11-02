@@ -4,15 +4,14 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import {
   ExternalLink,
-  FolderPlus,
   Folder as FolderIcon,
   KeyRound,
   Link2,
+  LoaderCircle,
   Plus,
   Search,
   Star,
@@ -49,12 +48,14 @@ import { SECRET_TYPES, type SecretType } from "@/api/vault/types";
 import { cn } from "@/lib/utils";
 import { analyzeHealth } from "../security/passwordHealth";
 import { summarizeLinks, useExternalShares } from "../shares/hooks";
+import { FolderManager } from './FolderManager';
+import { TrashDialog } from './TrashDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { GettingStarted } from "./GettingStarted";
 import {
   useAcceptPendingShares,
-  useCreateFolder,
-  useDeleteFolder,
   useDeleteSecrets,
+  useMoveSecrets,
   useFolders,
   useVaultItems,
 } from "./hooks";
@@ -111,20 +112,20 @@ export function VaultPage() {
   const estimator = useStrengthEstimator();
   const items = useVaultItems();
   const folders = useFolders();
-  const createFolder = useCreateFolder();
-  const deleteFolder = useDeleteFolder();
   const deleteSecrets = useDeleteSecrets();
+  const moveSecrets = useMoveSecrets();
+  const bulkActionRef = useRef(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const copy = useClipboard();
   useAcceptPendingShares(items.data);
 
+  const [foldersOpen, setFoldersOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>({ kind: "all" });
   const [category, setCategory] = useState<VaultCategory>('ALL');
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>({ open: false });
-  const [newFolder, setNewFolder] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -159,25 +160,41 @@ export function VaultPage() {
   }
 
   async function deleteChecked() {
-    if (bulkBusy || !checkedItems.length) return;
+    if (bulkActionRef.current || !checkedItems.length) return;
+    bulkActionRef.current = true;
     const ids = checkedItems.map(item => item.id);
     setBulkBusy(true);
     try {
       const ok = await confirmAction({
-        title: `Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}?`,
-        description: 'These items will be permanently deleted, including their history and shared access. This cannot be undone.',
-        confirmLabel: `Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
+        title: `Move to Trash: ${ids.length} ${ids.length === 1 ? 'item' : 'items'}?`,
+        description: 'These items move to Trash and can be restored. Shared access and links will be revoked.',
+        confirmLabel: `Move to Trash: ${ids.length} ${ids.length === 1 ? 'item' : 'items'}`,
         destructive: true,
       });
       if (!ok) return;
       const result = await deleteSecrets.mutateAsync(ids);
       setCheckedIds(new Set(result.failed));
       if (selectedId && result.deleted.includes(selectedId)) setSelectedId(null);
-      if (result.deleted.length) toast.success(`${result.deleted.length} ${result.deleted.length === 1 ? 'item' : 'items'} deleted`);
+      if (result.deleted.length) toast.success(`${result.deleted.length} ${result.deleted.length === 1 ? 'item' : 'items'} moved to Trash`, { icon: <Trash2 className="size-4 text-destructive" /> });
       if (result.failed.length) toast.error(`${result.failed.length} ${result.failed.length === 1 ? 'item could' : 'items could'} not be deleted. They remain selected so you can retry.`);
     } catch { toast.error('Could not complete deletion. Refresh the vault before trying again.'); }
-    finally { setBulkBusy(false); }
+    finally { bulkActionRef.current = false; setBulkBusy(false); }
   }
+  async function moveChecked(folderId: string | null) {
+    if (bulkActionRef.current || !checkedItems.length) return;
+    bulkActionRef.current = true;
+    const ids = checkedItems.map(item => item.id);
+    setBulkBusy(true);
+    try {
+      const result = await moveSecrets.mutateAsync({ ids, folderId });
+      setCheckedIds(new Set(result.failed));
+      const destination = folderId ? folders.data?.find(folder => folder.id === folderId)?.name ?? 'folder' : 'No folder';
+      if (result.moved.length) toast.success(result.moved.length + ' items moved to ' + destination);
+      if (result.failed.length) toast.error(result.failed.length + ' items could not be moved. They remain selected so you can retry.');
+    } catch { toast.error('Could not complete the move. Refresh the vault before trying again.'); }
+    finally { bulkActionRef.current = false; setBulkBusy(false); }
+  }
+
   const folderName = (id: string | null) =>
     folders.data?.find((f) => f.id === id)?.name ?? null;
   const typesPresent = SECRET_TYPES.filter((t) =>
@@ -261,28 +278,6 @@ export function VaultPage() {
     },
   });
 
-  async function onCreateFolder(event: FormEvent) {
-    event.preventDefault();
-    const name = newFolder.trim();
-    if (!name) return;
-    await createFolder.mutateAsync(name);
-    toast.success(`Folder “${name}” created`);
-    setNewFolder("");
-  }
-
-  async function onDeleteFolder(id: string, name: string) {
-    const ok = await confirmAction({
-      title: `Delete folder “${name}”?`,
-      description: "Items inside are kept and move to “All items”.",
-      confirmLabel: "Delete folder",
-      destructive: true,
-    });
-    if (!ok) return;
-    await deleteFolder.mutateAsync(id);
-    setFilter({ kind: "all" });
-    toast.success(`Folder “${name}” deleted`);
-  }
-
   const editorDrawer = (
     <SecretEditorDrawer
       open={editor.open}
@@ -307,15 +302,6 @@ export function VaultPage() {
       </Alert>
     );
   }
-  if (all.length === 0) {
-    return (
-      <div className="mx-auto h-full max-w-3xl overflow-y-auto">
-        <GettingStarted onAdd={openNew} />
-        {editorDrawer}
-      </div>
-    );
-  }
-
   const navItem = (
     label: string,
     f: Filter,
@@ -346,12 +332,19 @@ export function VaultPage() {
     );
   };
 
+  const folderManagerProps = {
+    onSelect: (id: string) => { setFilter({ kind: 'folder', id }); setCategory('ALL'); setSelectedId(null); },
+    onDeleted: (id: string) => { if (filter.kind === 'folder' && filter.id === id) setFilter({ kind: 'all' }); },
+    selectedId: filter.kind === 'folder' ? filter.id : undefined,
+    counts: Object.fromEntries((folders.data ?? []).map(folder => [folder.id, all.filter(item => item.folderId === folder.id).length])),
+  };
+
   return (
     <div className={cn(
       "grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-6",
       selected
-        ? "lg:grid-cols-[14rem_minmax(0,1fr)_minmax(20rem,26rem)]"
-        : "lg:grid-cols-[14rem_minmax(0,1fr)]",
+        ? "lg:grid-cols-[18rem_minmax(0,1fr)_minmax(20rem,26rem)]"
+        : "lg:grid-cols-[18rem_minmax(0,1fr)]",
     )}>
       {/* Sidebar (desktop) */}
       <aside
@@ -386,40 +379,7 @@ export function VaultPage() {
           <h2 className="px-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Folders
           </h2>
-          <div className="grid gap-0.5">
-            {folders.data?.map((f) =>
-              navItem(
-                f.name,
-                { kind: "folder", id: f.id },
-                all.filter((i) => i.folderId === f.id).length,
-                FolderIcon,
-                <IconAction
-                  label={`Delete folder ${f.name}`}
-                  className="opacity-0 group-hover/nav:opacity-100 focus-visible:opacity-100"
-                  onClick={() => onDeleteFolder(f.id, f.name)}
-                >
-                  <Trash2 />
-                </IconAction>,
-              ),
-            )}
-          </div>
-          <form onSubmit={onCreateFolder} className="mt-1 flex min-w-0 gap-1">
-            <Input
-              aria-label="New folder name"
-              placeholder="New folder"
-              className="h-8 min-w-0 flex-1"
-              value={newFolder}
-              onChange={(e) => setNewFolder(e.target.value)}
-            />
-            <IconAction
-              label="Create folder"
-              type="submit"
-              variant="outline"
-              size="icon"
-            >
-              <FolderPlus />
-            </IconAction>
-          </form>
+          <FolderManager {...folderManagerProps} />
         </div>
       </aside>
 
@@ -457,6 +417,13 @@ export function VaultPage() {
           <Button size="lg" onClick={() => openNew()}>
             <Plus /> <span className="hidden sm:inline">New item</span>
           </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Dialog open={foldersOpen} onOpenChange={setFoldersOpen}><DialogTrigger asChild><Button variant="outline" className="min-h-11 lg:hidden"><FolderIcon />Manage folders</Button></DialogTrigger>
+            <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>Manage folders</DialogTitle><DialogDescription>Create, rename or delete folders. Deleting a folder keeps its items.</DialogDescription></DialogHeader><FolderManager {...folderManagerProps} onSelect={id => { folderManagerProps.onSelect(id); setFoldersOpen(false); }} /></DialogContent>
+          </Dialog>
+          <TrashDialog />
         </div>
 
         {/* Filter (mobile) */}
@@ -506,14 +473,23 @@ export function VaultPage() {
           {visible.length} {visible.length === 1 ? "item" : "items"}
           {search && ` matching “${search}”`}
         </p>
-        {checkedItems.length > 0 && <div className="flex items-center gap-2" aria-label="Bulk actions">
+        {checkedItems.length > 0 && <div className="flex flex-wrap items-center gap-2" aria-label="Bulk actions">
           <span className="text-xs text-muted-foreground" role="status">{checkedItems.length} selected</span>
-          <Button variant="ghost" size="sm" disabled={bulkBusy} onClick={() => setCheckedIds(new Set())}>Clear selection</Button>
-          <Button variant="destructive" size="sm" disabled={bulkBusy} onClick={() => void deleteChecked()}><Trash2 />{deleteSecrets.isPending ? 'Deleting…' : 'Delete selected'}</Button>
+          <Select value="" disabled={bulkBusy || !folders.isSuccess} onValueChange={value => void moveChecked(value === '__none__' ? null : value)}>
+            <SelectTrigger aria-label="Move selected items to folder" className="min-h-11 w-44">
+              {moveSecrets.isPending ? <span className="flex items-center gap-2"><LoaderCircle className="size-4 animate-spin" />Moving...</span> : <SelectValue placeholder="Move to folder" />}
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No folder</SelectItem>
+              {folders.data?.map(folder => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-7" disabled={bulkBusy} onClick={() => setCheckedIds(new Set())}>Clear selection</Button>
+          <Button variant="destructive" size="sm" className="min-h-11 sm:min-h-7" disabled={bulkBusy} onClick={() => void deleteChecked()}><Trash2 />{deleteSecrets.isPending ? 'Deleting…' : 'Move to Trash'}</Button>
         </div>}
         </div>
 
-        {visible.length === 0 ? (
+        {all.length === 0 ? <div className="min-h-0 overflow-y-auto"><GettingStarted onAdd={openNew} /></div> : visible.length === 0 ? (
           <EmptyState
             icon={<Search />}
             title="Nothing here"

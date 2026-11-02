@@ -8,6 +8,10 @@ import type {
 } from './types';
 
 export const secretsApi = {
+  trash: () => apiFetch<VaultItem[]>('/secrets/trash'),
+  restore: (id: string) => apiFetch<void>(`/secrets/${id}/restore`, { method: 'POST' }),
+  purge: (id: string) => apiFetch<void>(`/secrets/${id}/permanent`, { method: 'DELETE' }),
+  move: (ids: string[], folderId: string | null) => apiFetch<{ moved: string[]; failed: string[] }>('/secrets/move', { method: 'POST', body: { ids, folderId } }),
   list: () => apiFetch<VaultItem[]>('/secrets'),
   create: (body: SecretsCreateRequest) => apiFetch<VaultItem>('/secrets', { method: 'POST', body }),
   update: (id: string, body: SecretsUpdateRequest) =>

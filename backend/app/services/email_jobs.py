@@ -39,6 +39,7 @@ def run_once(now: datetime | None = None) -> dict[str, int]:
             select(Secret, User, stage.label("stage"))
             .join(User, User.id == Secret.owner_id)
             .where(
+                Secret.deleted_at.is_(None),
                 Secret.expires_at.is_not(None),
                 Secret.expires_at <= now + timedelta(days=7),
                 func.coalesce(User.notification_prefs["expiry"].as_boolean(), True).is_(True),

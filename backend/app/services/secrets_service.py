@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session, contains_eager, joinedload, object_session
 from app.constants.vault import PERMISSION_RANK, KeyWrap, Permission
 from app.core.errors import AppError
 from app.db.model_helpers import utcnow
+from app.db.models.api_token_grant_model import ApiTokenGrant
+from app.db.models.external_share_model import ExternalShare
 from app.db.models.secret_access_model import SecretAccess
 from app.db.models.secret_history_model import SecretHistory
 from app.db.models.secret_model import Secret
@@ -30,8 +32,12 @@ def require_access(
 
     No access at all → 404 (don't reveal the secret exists); insufficient permission → 403.
     """
+    # Serialize permission-changing operations with moving the item to Trash.
+    secret = db.scalar(select(Secret).where(Secret.id == secret_id).with_for_update())
+    if secret is None or secret.deleted_at is not None:
+        raise AppError.not_found("Secret not found")
     access = db.get(SecretAccess, {"secret_id": secret_id, "user_id": user_id})
-    if access is None:
+    if access is None or access.secret.deleted_at is not None:
         raise AppError.not_found("Secret not found")
     if not has_permission(access.permission, required):
         raise AppError.forbidden()
@@ -76,12 +82,14 @@ def to_vault_item(access: SecretAccess, shared_with: int | None = None) -> Vault
     )
 
 
-def list_vault(db: Session, user_id: uuid.UUID) -> list[VaultItem]:
+def list_vault(db: Session, user_id: uuid.UUID, trash: bool = False) -> list[VaultItem]:
     query = (
         select(SecretAccess)
         .join(SecretAccess.secret)
         .options(contains_eager(SecretAccess.secret))
         .where(SecretAccess.user_id == user_id)
+        .where(Secret.deleted_at.is_not(None) if trash else Secret.deleted_at.is_(None))
+        .where(Secret.owner_id == user_id if trash else True)
         .order_by(Secret.updated_at.desc())
     )
     accesses = list(db.scalars(query).unique())
@@ -160,7 +168,18 @@ def delete_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None
     access = require_access(db, user_id, secret_id, Permission.MANAGE)
     if access.secret.owner_id != user_id:
         raise AppError.forbidden("Only the owner can delete a secret")
-    db.execute(delete(Secret).where(Secret.id == secret_id))  # access rows + history cascade in the DB
+    access.secret.deleted_at = utcnow()
+    # Recovery restores the owner's item, never its old sharing permissions.
+    db.execute(
+        delete(SecretAccess).where(SecretAccess.secret_id == secret_id, SecretAccess.user_id != user_id)
+    )
+    db.execute(delete(ApiTokenGrant).where(ApiTokenGrant.secret_id == secret_id))
+    db.execute(
+        update(ExternalShare)
+        .where(ExternalShare.secret_id == secret_id)
+        .values(revoked_at=utcnow(), encrypted_data=None, owner_key_enc=None)
+    )
+    db.flush()
 
 
 def list_history(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> list[SecretHistory]:
@@ -173,3 +192,51 @@ def list_history(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> list[
         .limit(50)
     )
     return list(db.scalars(query))
+
+
+def move_secrets(db: Session, user_id: uuid.UUID, ids: list[uuid.UUID], folder_id: uuid.UUID | None):
+    if folder_id:
+        get_owned_folder(db, user_id, folder_id)
+    ids = list(dict.fromkeys(ids))
+    eligible = list(
+        db.scalars(
+            select(SecretAccess.secret_id)
+            .join(SecretAccess.secret)
+            .where(
+                SecretAccess.user_id == user_id,
+                SecretAccess.secret_id.in_(ids),
+                Secret.deleted_at.is_(None),
+                Secret.owner_id == user_id,
+            )
+            .with_for_update(of=SecretAccess)
+        )
+    )
+    if eligible:
+        db.execute(
+            update(SecretAccess)
+            .where(SecretAccess.user_id == user_id, SecretAccess.secret_id.in_(eligible))
+            .values(folder_id=folder_id)
+        )
+    moved = set(eligible)
+    return {"moved": [i for i in ids if i in moved], "failed": [i for i in ids if i not in moved]}
+
+
+def owned_trash(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> Secret:
+    secret = db.scalar(
+        select(Secret)
+        .where(Secret.id == secret_id, Secret.owner_id == user_id, Secret.deleted_at.is_not(None))
+        .with_for_update()
+    )
+    if secret is None:
+        raise AppError.not_found("Trashed item not found")
+    return secret
+
+
+def restore_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None:
+    owned_trash(db, user_id, secret_id).deleted_at = None
+    db.flush()
+
+
+def purge_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None:
+    db.delete(owned_trash(db, user_id, secret_id))
+    db.flush()

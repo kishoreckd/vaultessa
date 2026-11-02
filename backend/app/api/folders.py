@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Request, Response, status
 
 from app.core.deps import Auth, DbSession
-from app.schemas.folders import FolderOut, FolderRequest
+from app.schemas.folders import FolderFingerprintRequest, FolderOut, FolderRequest
 from app.services import folders_service as service
 from app.services.audit_service import AuditAction, record
 
@@ -17,7 +17,7 @@ def list_folders(auth: Auth, db: DbSession):
 
 @router.post("", response_model=FolderOut, status_code=status.HTTP_201_CREATED)
 def create_folder(body: FolderRequest, request: Request, auth: Auth, db: DbSession):
-    folder = service.create_folder(db, auth.user_id, body.encrypted_name)
+    folder = service.create_folder(db, auth.user_id, body.encrypted_name, body.name_fingerprint)
     record(
         db,
         request,
@@ -30,9 +30,16 @@ def create_folder(body: FolderRequest, request: Request, auth: Auth, db: DbSessi
     return folder
 
 
+@router.post("/fingerprints", status_code=status.HTTP_204_NO_CONTENT)
+def register_fingerprints(body: FolderFingerprintRequest, auth: Auth, db: DbSession) -> Response:
+    service.register_fingerprints(db, auth.user_id, body.folders)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.put("/{folder_id}", response_model=FolderOut)
 def rename_folder(folder_id: uuid.UUID, body: FolderRequest, request: Request, auth: Auth, db: DbSession):
-    folder = service.rename_folder(db, auth.user_id, folder_id, body.encrypted_name)
+    folder = service.rename_folder(db, auth.user_id, folder_id, body.encrypted_name, body.name_fingerprint)
     record(
         db,
         request,

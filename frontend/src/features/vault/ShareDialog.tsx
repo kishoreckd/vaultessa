@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { organizationsApi } from '@/api/organizations/api';
 import { CircleAlert, Fingerprint, Info, Link2, LoaderCircle, Trash2, UserPlus } from 'lucide-react';
@@ -73,7 +73,7 @@ function ShareUsersBody({ item, onUseLink }: { item: DecryptedItem; onUseLink?: 
   const [looking, setLooking] = useState(false);
   const { formRef, errors, validate, clear } = useFormErrors<'email'>();
 
-  async function onLookup(event: FormEvent) {
+  async function onLookup(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setLookupError(null);
     setNoAccount(null);

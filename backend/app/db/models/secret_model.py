@@ -27,6 +27,7 @@ class Secret(Base):
     encrypted_data: Mapped[str] = mapped_column(Text)
     # Optional operational metadata for reminders; names and secret contents remain encrypted.
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     # incremented on every update; used for optimistic concurrency
     revision: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = created_at_column()

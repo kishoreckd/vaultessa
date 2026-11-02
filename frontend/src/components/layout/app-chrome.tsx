@@ -7,5 +7,5 @@ const Toaster = lazy(() => import('@/components/ui/sonner').then((m) => ({defaul
 export function AppChrome() {
   const { pathname } = useLocation();
   if (['/', '/features','/security','/how-it-works'].includes(pathname)) return null;
-  return <Suspense fallback={null}><Toaster position="top-right" offset={{top:72,right:24}} mobileOffset={{top:64}} richColors closeButton/><ConfirmDialogHost/></Suspense>;
+  return <Suspense fallback={null}><Toaster position="top-right" offset={{top:72,right:24}} mobileOffset={{top:64}} closeButton/><ConfirmDialogHost/></Suspense>;
 }

@@ -138,7 +138,11 @@ def machine_secrets(db: Session, token: ApiToken) -> list[MachineSecret]:
         select(Secret, ApiTokenGrant.wrapped_key)
         .join(ApiTokenGrant, ApiTokenGrant.secret_id == Secret.id)
         .join(SecretAccess, (SecretAccess.secret_id == Secret.id) & (SecretAccess.user_id == token.user_id))
-        .where(ApiTokenGrant.token_id == token.id, SecretAccess.permission != Permission.LOGIN_ONLY)
+        .where(
+            Secret.deleted_at.is_(None),
+            ApiTokenGrant.token_id == token.id,
+            SecretAccess.permission != Permission.LOGIN_ONLY,
+        )
         .order_by(Secret.updated_at.desc())
     )
     return [

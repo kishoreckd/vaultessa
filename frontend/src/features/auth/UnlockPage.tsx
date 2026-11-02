@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { PasswordInput } from '@/components/common/password-input';
@@ -37,7 +37,7 @@ export function UnlockPage() {
   const [busy, setBusy] = useState(false);
   const { formRef, errors, validate, clear } = useFormErrors<'password'>();
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validate({ password: password ? null : 'Enter your master password.' })) return;
     setBusy(true);

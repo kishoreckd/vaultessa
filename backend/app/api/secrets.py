@@ -6,6 +6,8 @@ from app.core.deps import Auth, DbSession
 from app.schemas.secrets import (
     CreateSecretRequest,
     HistoryEntry,
+    MoveSecretsRequest,
+    MoveSecretsResult,
     UpdateAccessRequest,
     UpdateSecretRequest,
     VaultItem,
@@ -19,6 +21,52 @@ router = APIRouter(prefix="/secrets", tags=["secrets"])
 @router.get("", response_model=list[VaultItem])
 def list_vault(auth: Auth, db: DbSession):
     return service.list_vault(db, auth.user_id)
+
+
+@router.get("/trash", response_model=list[VaultItem])
+def list_trash(auth: Auth, db: DbSession):
+    return service.list_vault(db, auth.user_id, trash=True)
+
+
+@router.post("/move", response_model=MoveSecretsResult)
+def move_secrets(body: MoveSecretsRequest, request: Request, auth: Auth, db: DbSession):
+    result = service.move_secrets(db, auth.user_id, body.ids, body.folder_id)
+    for secret_id in result["moved"]:
+        record(
+            db,
+            request,
+            AuditAction.SECRET_MOVE,
+            user_id=auth.user_id,
+            target_type="Secret",
+            target_id=secret_id,
+        )
+    db.commit()
+    return result
+
+
+@router.post("/{secret_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+def restore_secret(secret_id: uuid.UUID, request: Request, auth: Auth, db: DbSession) -> Response:
+    service.restore_secret(db, auth.user_id, secret_id)
+    record(
+        db,
+        request,
+        AuditAction.SECRET_RESTORE,
+        user_id=auth.user_id,
+        target_type="Secret",
+        target_id=secret_id,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{secret_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+def purge_secret(secret_id: uuid.UUID, request: Request, auth: Auth, db: DbSession) -> Response:
+    service.purge_secret(db, auth.user_id, secret_id)
+    record(
+        db, request, AuditAction.SECRET_PURGE, user_id=auth.user_id, target_type="Secret", target_id=secret_id
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("", response_model=VaultItem, status_code=status.HTTP_201_CREATED)

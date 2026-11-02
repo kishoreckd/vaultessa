@@ -83,7 +83,8 @@ function type(schema = {}) {
   );
 }
 
-const covered = new Set(['POST /api/auth/refresh']); // Transport owns cookie refresh.
+// Cookie refresh belongs to the transport; the marketing form calls enquiries directly.
+const covered = new Set(['POST /api/auth/refresh', 'POST /api/enquiries']);
 const failures = [];
 const definitions = Object.entries(schema.components.schemas).map(
   ([key, value]) => `type ${name(key)} = ${type(value)};`,
@@ -164,7 +165,8 @@ for (const directory of fs
     }
   }
 }
-const excluded = new Set(['GET /api/health', 'GET /api/machine/secrets']);
+// Operational email diagnostics are not exposed in the browser app.
+const excluded = new Set(['GET /api/health', 'GET /api/health/email', 'POST /api/health/email', 'GET /api/machine/secrets']);
 for (const operation of operations.keys())
   if (!covered.has(operation) && !excluded.has(operation))
     failures.push('Missing browser API wrapper: ' + operation);

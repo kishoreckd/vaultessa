@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
@@ -31,7 +31,7 @@ export function LoginPage() {
   const [rememberDevice, setRememberDevice] = useState(false);
   const { formRef, errors, validate, clear } = useFormErrors<'email' | 'password'>();
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     if (!validate({ email: emailError(email), password: password ? null : 'Enter your master password.' }))

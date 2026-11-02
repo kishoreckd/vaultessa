@@ -32,7 +32,7 @@ beforeAll(async () => {
     false,
     ["encrypt", "decrypt"],
   );
-  keys = { vaultKey, privateKey: pair.privateKey };
+  keys = { vaultKey, privateKey: pair.privateKey, folderNameKey: await crypto.subtle.generateKey({ name: "HMAC", hash: "SHA-256" }, false, ["sign"]) };
 });
 afterEach(async () => {
   vi.restoreAllMocks();

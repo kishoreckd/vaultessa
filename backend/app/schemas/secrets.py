@@ -67,3 +67,13 @@ class HistoryEntry(ApiModel):
     encrypted_data: str
     changed_by: UserBrief | None
     created_at: datetime
+
+
+class MoveSecretsRequest(RequestModel):
+    ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=1000)]
+    folder_id: uuid.UUID | None = None
+
+
+class MoveSecretsResult(ApiModel):
+    moved: list[uuid.UUID]
+    failed: list[uuid.UUID]

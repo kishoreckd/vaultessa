@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type SubmitEvent } from 'react';
 import { Check, CircleAlert, CircleCheck, Copy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
@@ -142,7 +142,7 @@ function ShareLinkForm({
   const outside = !!theirDomain && !!myDomain && theirDomain !== myDomain;
   const fieldKeys = fields.filter((f) => include[f.key]).map((f) => f.key);
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
     const ok = validate({

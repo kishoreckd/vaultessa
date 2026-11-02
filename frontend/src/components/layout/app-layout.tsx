@@ -1,3 +1,4 @@
+import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
@@ -67,6 +68,8 @@ function initials(name?: string) {
 }
 
 export function AppLayout() {
+  const fetching = useIsFetching();
+  const mutating = useIsMutating();
   const isVault = useLocation().pathname === '/vault';
   useAutoLock();
   const account = useSession((s) => s.account);
@@ -85,6 +88,7 @@ export function AppLayout() {
 
   return (
     <div className={cn('flex flex-col', isVault ? 'h-svh overflow-hidden' : 'min-h-svh')}>
+      {(fetching > 0 || mutating > 0) && <div role="progressbar" aria-label={mutating ? "Saving changes" : "Loading"} className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-1 overflow-hidden bg-primary/20"><div className="app-request-progress h-full w-1/3 bg-primary" /></div>}
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow"
