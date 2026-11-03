@@ -103,12 +103,12 @@ export function FolderShareDrawer({ folder, onClose }: { folder: DecryptedFolder
         </Button>
       }
     >
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid h-auto w-full grid-cols-2">
-          <TabsTrigger className="min-h-11" value="people">
+      <Tabs value={tab} onValueChange={setTab} className="gap-4">
+        <TabsList className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-[50px]">
+          <TabsTrigger className="h-11 min-w-0" value="people">
             People
           </TabsTrigger>
-          <TabsTrigger className="min-h-11" value="link">
+          <TabsTrigger className="h-11 min-w-0" value="link">
             Share link
           </TabsTrigger>
         </TabsList>
