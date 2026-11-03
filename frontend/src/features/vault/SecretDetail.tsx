@@ -21,6 +21,7 @@ import { IconAction } from '@/components/common/icon-action';
 import { Loading } from '@/components/common/page';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useClipboard } from '@/hooks/useClipboard';
@@ -34,7 +35,7 @@ import { useDeleteSecret, useHistory, useLeaveShare, useToggleFavorite } from '.
 import { ItemAvatar } from './ItemAvatar';
 import { ShareUsersDrawer } from './ShareDialog';
 import { getField, TEMPLATES, type FieldDef } from './secretTemplates';
-import { can, PERMISSION_DESCRIPTIONS, PERMISSION_LABELS, relativeTime, safeHref, type DecryptedItem } from './vaultTypes';
+import { can, PERMISSION_LABELS, relativeTime, safeHref, type DecryptedItem } from './vaultTypes';
 
 type Props = {
   item: DecryptedItem;
@@ -118,18 +119,17 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
       </CardHeader>
 
       {!item.isOwner && (
-        <div className="flex items-start gap-2 border-b bg-sky-500/5 px-6 py-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2 border-b bg-sky-500/5 px-6 py-3 text-sm">
           <Users className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" />
-          <p>
-            Shared by <strong>{item.owner.name}</strong> ({item.owner.email}). You have{' '}
-            <strong>{PERMISSION_LABELS[item.permission]}</strong> access — {PERMISSION_DESCRIPTIONS[item.permission].toLowerCase()}
+          <p className="min-w-0 flex-1 break-words">
+            Shared by <strong>{item.owner.name}</strong>
           </p>
+          <Badge variant="secondary" className="shrink-0">{item.permission === 'VIEW' ? 'View only' : PERMISSION_LABELS[item.permission]}</Badge>
         </div>
       )}
-      {item.inheritedFolderId && <p className="border-b px-6 py-3 text-sm text-muted-foreground">Access comes from this shared folder. The owner manages membership. To remove folder access, use Leave folder in Manage folders.</p>}
 
       {item.isOwner && <SharingSummary item={item} links={links} />}
-      {item.expiresAt && <p className="border-b px-6 py-3 text-sm"><strong>{Date.parse(item.expiresAt) <= Date.now() ? 'Expired' : 'Expires'}</strong> {new Date(item.expiresAt).toLocaleString()}. {item.isOwner ? 'Expiry reminders follow your email preferences.' : 'The owner manages expiry reminders.'}</p>}
+      {item.expiresAt && <p className="border-b px-6 py-3 text-sm"><strong>{Date.parse(item.expiresAt) <= Date.now() ? 'Item expired' : 'Item expires'}</strong> {new Date(item.expiresAt).toLocaleString()}{item.isOwner && '. Expiry reminders follow your email preferences.'}</p>}
 
       {health && health.issues.length > 0 && (
         <ul className="grid gap-1 border-b bg-warning/10 px-6 py-3 text-sm">
