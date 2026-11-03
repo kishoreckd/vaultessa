@@ -4,7 +4,7 @@ import { type ExternalShare } from '@/api/sharing/types';
 import { decryptJson, encryptJson, sealSend } from '@/lib/crypto';
 import { requireKeys } from '@/stores/session';
 import { getField, TEMPLATES } from '../vault/secretTemplates';
-import type { DecryptedItem } from '../vault/vaultTypes';
+import type { DecryptedItem, DecryptedFolder } from '../vault/vaultTypes';
 
 export const linkKeys = {
   all: ['external-shares'] as const,
@@ -20,10 +20,18 @@ export type SharedSnapshot = {
   sharedBy: string;
   message?: string;
   fields: Array<{ label: string; value: string; secret?: boolean; mono?: boolean; multiline?: boolean }>;
+  /** A frozen folder snapshot; future item additions and edits are not included. */
+  items?: Array<{ name: string; typeLabel: string; fields: SharedSnapshot['fields'] }>;
 };
 
 /** Stored encrypted under the owner's vault key so only they can re-copy or re-open the link. */
-export type OwnerLinkSecret = { linkKey: string; accessCode?: string; fieldKeys: string[]; message?: string };
+export type OwnerLinkSecret = {
+  linkKey: string;
+  accessCode?: string;
+  fieldKeys: string[];
+  message?: string;
+  snapshot?: SharedSnapshot;
+};
 
 export type LinkTiming = { expiresAt: Date; maxViews: number | null };
 
@@ -31,13 +39,33 @@ export type LinkTiming = { expiresAt: Date; maxViews: number | null };
 export function shareableFields(item: DecryptedItem) {
   const template = TEMPLATES[item.type];
   const list = template.fields
-    .map((f) => ({ key: f.key, label: f.label, secret: f.secret, mono: f.mono, multiline: f.multiline, value: getField(item.data, f.key) }))
+    .map((f) => ({
+      key: f.key,
+      label: f.label,
+      secret: f.secret,
+      mono: f.mono,
+      multiline: f.multiline,
+      value: getField(item.data, f.key),
+    }))
     .filter((f): f is typeof f & { value: string } => !!f.value);
-  if (item.data.notes) list.push({ key: 'notes', label: template.notesLabel, secret: undefined, mono: undefined, multiline: true, value: item.data.notes });
+  if (item.data.notes)
+    list.push({
+      key: 'notes',
+      label: template.notesLabel,
+      secret: undefined,
+      mono: undefined,
+      multiline: true,
+      value: item.data.notes,
+    });
   return list;
 }
 
-export function buildSnapshot(item: DecryptedItem, fieldKeys: string[], sharedBy: string, message?: string): SharedSnapshot {
+export function buildSnapshot(
+  item: DecryptedItem,
+  fieldKeys: string[],
+  sharedBy: string,
+  message?: string,
+): SharedSnapshot {
   return {
     v: 1,
     name: item.data.name,
@@ -63,10 +91,14 @@ export function useShareConfig() {
   return useQuery({ queryKey: linkKeys.config, queryFn: externalSharesApi.config, staleTime: Infinity });
 }
 
-export function useExternalShares(secretId?: string) {
+export function useExternalShares(secretId?: string, folderId?: string) {
   return useQuery({
-    queryKey: secretId ? linkKeys.forItem(secretId) : linkKeys.all,
-    queryFn: () => externalSharesApi.list(secretId),
+    queryKey: secretId
+      ? linkKeys.forItem(secretId)
+      : folderId
+        ? [...linkKeys.all, 'folder', folderId]
+        : linkKeys.all,
+    queryFn: () => externalSharesApi.list(secretId, folderId),
   });
 }
 
@@ -86,9 +118,16 @@ export function summarizeLinks(links: ExternalShare[] | undefined): Map<string, 
   const out = new Map<string, LinkInsight>();
   for (const link of links ?? []) {
     if (!link.secretId) continue;
-    const s = out.get(link.secretId) ?? { active: 0, views: 0, lastViewedAt: null, outsideActive: false, nextExpiry: null };
+    const s = out.get(link.secretId) ?? {
+      active: 0,
+      views: 0,
+      lastViewedAt: null,
+      outsideActive: false,
+      nextExpiry: null,
+    };
     s.views += link.viewCount;
-    if (link.lastViewedAt && (!s.lastViewedAt || link.lastViewedAt > s.lastViewedAt)) s.lastViewedAt = link.lastViewedAt;
+    if (link.lastViewedAt && (!s.lastViewedAt || link.lastViewedAt > s.lastViewedAt))
+      s.lastViewedAt = link.lastViewedAt;
     if (link.status === 'active') {
       s.active += 1;
       s.outsideActive ||= link.outsideDomain;
@@ -136,14 +175,97 @@ export function useCreateShareLink() {
   });
 }
 
+export function buildFolderSnapshot(
+  folder: DecryptedFolder,
+  items: DecryptedItem[],
+  sharedBy: string,
+  message?: string,
+): SharedSnapshot {
+  if (!items.length || items.length > 1000) throw new Error('Choose between 1 and 1,000 items.');
+  if (items.some((item) => !item.isOwner || item.decryptFailed || item.folderId !== folder.id)) {
+    throw new Error('Only readable items you own in this folder can be included.');
+  }
+  const snapshot: SharedSnapshot = {
+    v: 1,
+    name: folder.name,
+    typeLabel: `Folder snapshot · ${items.length} items`,
+    sharedBy,
+    message: message || undefined,
+    fields: [],
+    items: items.map((item) => {
+      const value = buildSnapshot(
+        item,
+        shareableFields(item).map((field) => field.key),
+        sharedBy,
+      );
+      return { name: value.name, typeLabel: value.typeLabel, fields: value.fields };
+    }),
+  };
+  if (new TextEncoder().encode(JSON.stringify(snapshot)).length > 650_000) {
+    throw new Error('This snapshot is too large. Select fewer items and create another link for the rest.');
+  }
+  return snapshot;
+}
+
+export function useCreateFolderShareLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    meta: { errorTitle: "Couldn't create the folder link" },
+    mutationFn: async (input: {
+      folder: DecryptedFolder;
+      items: DecryptedItem[];
+      sharedBy: string;
+      timing: LinkTiming;
+      accessCode?: string;
+      recipientEmail?: string;
+      message?: string;
+    }) => {
+      const snapshot = buildFolderSnapshot(input.folder, input.items, input.sharedBy, input.message);
+      const sealed = await sealSend(snapshot, input.accessCode);
+      const owner: OwnerLinkSecret = {
+        linkKey: sealed.linkKey,
+        accessCode: input.accessCode,
+        fieldKeys: [],
+        snapshot,
+      };
+      const share = await externalSharesApi.create({
+        folderId: input.folder.id,
+        secretIds: input.items.map((item) => item.id),
+        encryptedData: sealed.encryptedData,
+        expiresAt: input.timing.expiresAt.toISOString(),
+        maxViews: input.timing.maxViews,
+        codeSalt: sealed.codeSalt,
+        codeVerifier: sealed.codeVerifier,
+        recipientEmail: input.recipientEmail || undefined,
+        ownerKey: await encryptJson(requireKeys().vaultKey, owner),
+      });
+      return { share, link: buildLink(share.id, sealed.linkKey) };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: linkKeys.all }),
+  });
+}
+
 /** Re-activates the same URL with the item's CURRENT values (e.g. after the password changed). */
 export function useReopenShareLink() {
   const qc = useQueryClient();
   return useMutation({
     meta: { errorTitle: "Couldn't re-open the link" },
-    mutationFn: async (input: { link: ExternalShare; item: DecryptedItem; sharedBy: string; timing: LinkTiming }) => {
+    mutationFn: async (input: {
+      link: ExternalShare;
+      item?: DecryptedItem;
+      sharedBy: string;
+      timing: LinkTiming;
+    }) => {
       const owner = await readOwnerSecret(input.link);
-      const snapshot = buildSnapshot(input.item, owner.fieldKeys, input.sharedBy, owner.message);
+      let snapshot: SharedSnapshot;
+      if (input.link.kind === 'folder') {
+        if (!owner.snapshot?.items?.length)
+          throw new Error('This snapshot cannot be reopened. Create a new link.');
+        snapshot = owner.snapshot;
+      } else {
+        if (!input.item) throw new Error('The shared item is no longer available');
+        snapshot = buildSnapshot(input.item, owner.fieldKeys, input.sharedBy, owner.message);
+      }
       const sealed = await sealSend(snapshot, owner.accessCode, owner.linkKey);
       const share = await externalSharesApi.reopen(input.link.id, {
         encryptedData: sealed.encryptedData,

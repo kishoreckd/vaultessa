@@ -12,7 +12,7 @@ import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@
 import { auditApi } from '@/api/audit/api';
 import { externalSharesApi, sharingApi } from '@/api/sharing/api';
 import { type ExternalShare } from '@/api/sharing/types';
-import { useVaultItems } from '../vault/hooks';
+import { useVaultItems, useFolders } from '../vault/hooks';
 import { useExternalShares, linkKeys, STATUS_LABEL } from './hooks';
 import { LinkRow } from './LinkRow';
 
@@ -21,6 +21,7 @@ export function SharedLinksPage() {
   const linkedId = params.get('link');
   const links = useExternalShares();
   const vault = useVaultItems();
+  const folders = useFolders();
   const [tab, setTab] = useState('links');
   const [all, setAll] = useState(Boolean(linkedId) || params.get('include') === 'inactive');
   const [selected, setSelected] = useState<string | undefined>(linkedId ?? undefined);
@@ -50,83 +51,122 @@ export function SharedLinksPage() {
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Include
             inactive links
           </label>
-          {links.isPending || vault.isPending ? (
+          {links.isPending || vault.isPending || folders.isPending ? (
             <Loading />
-          ) : links.isError || vault.isError ? (
+          ) : links.isError || vault.isError || folders.isError ? (
             <Button
               variant="outline"
               onClick={() => {
                 void links.refetch();
                 void vault.refetch();
+                void folders.refetch();
               }}
             >
               Retry shared items
             </Button>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {['Item', 'Recipient', 'Type', 'Views', 'Expires', 'Status', 'Access code', 'Actions'].map(
-                    (title) => (
-                      <TableHead key={title}>{title}</TableHead>
-                    ),
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="grid gap-3 sm:hidden" aria-label="Share links">
                 {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8}>No links to show. Open an item to create a share link.</TableCell>
-                  </TableRow>
+                  <p className="text-sm text-muted-foreground">
+                    No links to show. Open an item or folder to create a share link.
+                  </p>
                 )}
-                {rows.map((row) => {
-                  const item = vault.data?.find((i) => i.id === row.secretId);
-                  return (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        {item ? (
-                          <Link className="font-medium hover:underline" to={`/vault?item=${item.id}`}>
-                            {item.data.name}
-                          </Link>
-                        ) : (
-                          'Deleted item'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {row.recipientEmail || 'Anyone with the link'}
-                        {row.outsideDomain && (
-                          <Badge variant="outline" className="ml-2">
-                            Outside domain
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{row.maxViews === 1 ? 'One-time' : 'Time period'}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="link"
-                          onClick={() => setSelected(row.id)}
-                          aria-label={`View details: ${row.viewCount} views used`}
-                        >
-                          {row.viewCount} / {row.maxViews ?? 'Unlimited'}
-                        </Button>
-                      </TableCell>
-                      <TableCell>{new Date(row.expiresAt).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={row.status === 'active' ? 'default' : 'secondary'}>
-                          {STATUS_LABEL[row.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{row.hasCode ? 'Required' : 'None'}</TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => setSelected(row.id)}>
-                          Manage
-                        </Button>
-                      </TableCell>
+                {rows.map((row) => (
+                  <article key={row.id} className="grid min-w-0 gap-2">
+                    <ul>
+                      <LinkRow
+                        link={row}
+                        item={vault.data?.find((item) => item.id === row.secretId)}
+                        folder={folders.data?.find((folder) => folder.id === row.folderId)}
+                        showItem
+                      />
+                    </ul>
+                    <Button variant="outline" className="min-h-11 w-full" onClick={() => setSelected(row.id)}>
+                      View activity and limits
+                    </Button>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {[
+                        'Item',
+                        'Recipient',
+                        'Type',
+                        'Views',
+                        'Expires',
+                        'Status',
+                        'Access code',
+                        'Actions',
+                      ].map((title) => (
+                        <TableHead key={title}>{title}</TableHead>
+                      ))}
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8}>
+                          No links to show. Open an item or folder to create a share link.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {rows.map((row) => {
+                      const item = vault.data?.find((i) => i.id === row.secretId);
+                      const folder = folders.data?.find((f) => f.id === row.folderId);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            {item ? (
+                              <Link className="font-medium hover:underline" to={`/vault?item=${item.id}`}>
+                                {item.data.name}
+                              </Link>
+                            ) : row.kind === 'folder' ? (
+                              `${folder?.name ?? 'Deleted folder'} (snapshot)`
+                            ) : (
+                              'Deleted item'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {row.recipientEmail || 'Anyone with the link'}
+                            {row.outsideDomain && (
+                              <Badge variant="outline" className="ml-2">
+                                Outside domain
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>{row.maxViews === 1 ? 'One-time' : 'Time period'}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="link"
+                              onClick={() => setSelected(row.id)}
+                              aria-label={`View details: ${row.viewCount} views used`}
+                            >
+                              {row.viewCount} / {row.maxViews ?? 'Unlimited'}
+                            </Button>
+                          </TableCell>
+                          <TableCell>{new Date(row.expiresAt).toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge variant={row.status === 'active' ? 'default' : 'secondary'}>
+                              {STATUS_LABEL[row.status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{row.hasCode ? 'Required' : 'None'}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="outline" onClick={() => setSelected(row.id)}>
+                              Manage
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </>
       ) : people.isPending ? (
@@ -179,14 +219,27 @@ export function SharedLinksPage() {
         description="Review usage, adjust active limits, or re-open an inactive link."
       >
         {link && (
-          <LinkDetails key={link.id} link={link} item={vault.data?.find((i) => i.id === link.secretId)} />
+          <LinkDetails
+            key={link.id}
+            link={link}
+            item={vault.data?.find((i) => i.id === link.secretId)}
+            folder={folders.data?.find((f) => f.id === link.folderId)}
+          />
         )}
       </Drawer>
     </div>
   );
 }
 
-function LinkDetails({ link, item }: { link: ExternalShare; item?: Parameters<typeof LinkRow>[0]['item'] }) {
+function LinkDetails({
+  link,
+  item,
+  folder,
+}: {
+  link: ExternalShare;
+  item?: Parameters<typeof LinkRow>[0]['item'];
+  folder?: Parameters<typeof LinkRow>[0]['folder'];
+}) {
   const qc = useQueryClient();
   const events = useInfiniteQuery({
     queryKey: ['link-events', link.id],
@@ -259,7 +312,7 @@ function LinkDetails({ link, item }: { link: ExternalShare; item?: Parameters<ty
         </form>
       )}
       <ul>
-        <LinkRow link={link} item={item} showItem />
+        <LinkRow link={link} item={item} folder={folder} showItem />
       </ul>
       <section className="grid gap-3">
         <h3 className="font-medium">Link activity</h3>

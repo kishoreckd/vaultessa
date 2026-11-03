@@ -128,7 +128,15 @@ def update_member(
     auth: Auth,
     db: DbSession,
 ):
-    sharing.change(db, auth.user_id, folder_id, user_id, body.permission)
+    sharing.change(
+        db,
+        auth.user_id,
+        folder_id,
+        user_id,
+        body.permission,
+        expires_at=body.expires_at,
+        update_expiry="expires_at" in body.model_fields_set,
+    )
     record(
         db,
         request,

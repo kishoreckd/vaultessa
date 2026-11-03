@@ -65,7 +65,7 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
   async function onDelete() {
     const ok = await confirmAction({
       title: `Move to Trash: “${data.name}”?`,
-      description: 'This item moves to Trash, where you can restore it. Shared access and links will be revoked.',
+      description: 'This item moves to Trash. Shared access, item links, and folder snapshot links containing it will be revoked.',
       confirmLabel: 'Move to Trash',
       destructive: true,
     });

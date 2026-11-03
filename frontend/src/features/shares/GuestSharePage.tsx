@@ -1,6 +1,16 @@
 import { useEffect, useState, type SubmitEvent, type ReactNode } from 'react';
 import { useParams } from 'react-router';
-import { Ban, CircleAlert, Clock, Copy, Eye, EyeOff, KeyRound, LoaderCircle, ShieldCheck } from 'lucide-react';
+import {
+  Ban,
+  CircleAlert,
+  Clock,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LoaderCircle,
+  ShieldCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { VaultessaLogo } from '@/components/common/brand';
 import { IconAction } from '@/components/common/icon-action';
@@ -22,9 +32,15 @@ import type { SharedSnapshot } from './hooks';
 
 const GONE_COPY: Record<Exclude<PublicShareInfo['status'], 'active'>, { title: string; body: string }> = {
   expired: { title: 'This link has expired', body: 'Ask the sender to share it again.' },
-  used: { title: 'This link was already opened', body: 'It could only be viewed once and has been deleted.' },
+  used: {
+    title: 'This link reached its view limit',
+    body: 'Ask the sender to re-open it if you need access again.',
+  },
   revoked: { title: 'This link was revoked', body: 'The sender turned it off.' },
-  locked: { title: 'This link is locked', body: 'Too many wrong access codes were tried. Ask the sender for a new link.' },
+  locked: {
+    title: 'This link is locked',
+    body: 'Too many wrong access codes were tried. Ask the sender for a new link.',
+  },
 };
 
 function Shell({ children }: { children: ReactNode }) {
@@ -65,16 +81,32 @@ export function GuestSharePage() {
     event.preventDefault();
     if (!info) return;
     setOpenError(null);
-    if (info.hasCode && !validate({ code: code.trim() ? null : `Enter the access code ${info.senderName} sent you.` })) return;
+    if (
+      info.hasCode &&
+      !validate({ code: code.trim() ? null : `Enter the access code ${info.senderName} sent you.` })
+    )
+      return;
     setOpening(true);
     try {
-      const verifier = info.hasCode && info.codeSalt ? await accessCodeVerifier(code, info.codeSalt) : undefined;
+      const verifier =
+        info.hasCode && info.codeSalt ? await accessCodeVerifier(code, info.codeSalt) : undefined;
       const result = await publicSharesApi.open(id, verifier);
-      setSnapshot(await openSend<SharedSnapshot>(result.encryptedData, linkKey, info.hasCode ? code : undefined, result.codeSalt));
+      setSnapshot(
+        await openSend<SharedSnapshot>(
+          result.encryptedData,
+          linkKey,
+          info.hasCode ? code : undefined,
+          result.codeSalt,
+        ),
+      );
       setViewsLeft(result.viewsLeft);
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) {
-        setInfo({ ...info, status: err.message.includes('wrong codes') ? 'locked' : 'used' });
+        try {
+          setInfo(await publicSharesApi.info(id));
+        } catch {
+          setOpenError(err.message);
+        }
       } else if (err instanceof ApiError) {
         setOpenError(err.message);
       } else {
@@ -91,7 +123,9 @@ export function GuestSharePage() {
         <Alert variant="destructive">
           <CircleAlert />
           <AlertTitle>This link is incomplete</AlertTitle>
-          <AlertDescription>The part after “#” is missing. Ask the sender to copy the full link again.</AlertDescription>
+          <AlertDescription>
+            The part after “#” is missing. Ask the sender to copy the full link again.
+          </AlertDescription>
         </Alert>
       </Shell>
     );
@@ -139,14 +173,14 @@ export function GuestSharePage() {
     <Shell>
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">{info.senderName} shared a password with you</CardTitle>
+          <CardTitle className="text-xl">{info.senderName} shared secure details with you</CardTitle>
           <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="flex items-center gap-1">
               <Clock className="size-3.5" /> Expires {relativeTime(info.expiresAt)}
             </span>
             {oneTime && (
               <span className="flex items-center gap-1 font-medium text-warning">
-                <Eye className="size-3.5" /> Can be viewed only once
+                <Eye className="size-3.5" /> One view remaining
               </span>
             )}
           </CardDescription>
@@ -180,7 +214,10 @@ export function GuestSharePage() {
                   }}
                 />
                 {errors.code ? (
-                  <p id="access-code-error" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                  <p
+                    id="access-code-error"
+                    className="flex items-center gap-1.5 text-xs font-medium text-destructive"
+                  >
                     <CircleAlert className="size-3.5" />
                     {errors.code}
                   </p>
@@ -193,14 +230,14 @@ export function GuestSharePage() {
             )}
             {oneTime && (
               <p className="text-sm text-muted-foreground">
-                Make sure you’re ready to save it — after you open it, this link is deleted for good.
+                Make sure you’re ready to save it — this is the last view currently allowed by the sender.
               </p>
             )}
           </CardContent>
           <CardFooter className="mt-4">
             <Button type="submit" size="lg" className="w-full" disabled={opening}>
               {opening ? <LoaderCircle className="animate-spin" /> : <Eye />}
-              {opening ? 'Decrypting…' : 'View password'}
+              {opening ? 'Decrypting…' : 'View shared details'}
             </Button>
           </CardFooter>
         </form>
@@ -209,7 +246,15 @@ export function GuestSharePage() {
   );
 }
 
-function Revealed({ snapshot, viewsLeft, expiresAt }: { snapshot: SharedSnapshot; viewsLeft: number | null; expiresAt: string }) {
+function Revealed({
+  snapshot,
+  viewsLeft,
+  expiresAt,
+}: {
+  snapshot: SharedSnapshot;
+  viewsLeft: number | null;
+  expiresAt: string;
+}) {
   return (
     <Shell>
       <Card>
@@ -223,20 +268,44 @@ function Revealed({ snapshot, viewsLeft, expiresAt }: { snapshot: SharedSnapshot
           {viewsLeft === 0 ? (
             <Alert className="border-warning/40 bg-warning/10">
               <Eye className="text-warning" />
-              <AlertTitle>This was a one-time view</AlertTitle>
-              <AlertDescription>The link is now deleted. Copy what you need before closing this page.</AlertDescription>
+              <AlertTitle>This was the last allowed view</AlertTitle>
+              <AlertDescription>
+                The link is now disabled. Copy what you need before closing this page.
+              </AlertDescription>
             </Alert>
           ) : (
-            <p className="text-xs text-muted-foreground">You can reopen this link until it expires {relativeTime(expiresAt)}.</p>
+            <p className="text-xs text-muted-foreground">
+              You can reopen this link until it expires {relativeTime(expiresAt)}.
+            </p>
           )}
           {snapshot.message && (
-            <blockquote className="rounded-lg border-l-4 border-primary bg-muted/50 px-3 py-2 text-sm">{snapshot.message}</blockquote>
+            <blockquote className="rounded-lg border-l-4 border-primary bg-muted/50 px-3 py-2 text-sm">
+              {snapshot.message}
+            </blockquote>
           )}
           <dl className="grid gap-3">
             {snapshot.fields.map((field) => (
               <GuestField key={field.label} {...field} />
             ))}
           </dl>
+          {snapshot.items && (
+            <div className="grid gap-5">
+              <p className="text-sm text-muted-foreground">
+                This is a snapshot. Later additions, moves, and edits are not included.
+              </p>
+              {snapshot.items.map((item, index) => (
+                <section key={index} className="grid min-w-0 gap-3 rounded-lg border p-3">
+                  <h2 className="break-words font-medium">{item.name}</h2>
+                  <p className="text-xs text-muted-foreground">{item.typeLabel}</p>
+                  <dl className="grid gap-3">
+                    {item.fields.map((field, fieldIndex) => (
+                      <GuestField key={fieldIndex} {...field} />
+                    ))}
+                  </dl>
+                </section>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </Shell>
@@ -257,11 +326,20 @@ function GuestField({ label, value, secret, mono, multiline }: SharedSnapshot['f
     <div className="grid gap-1 rounded-lg border p-3">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
       <dd className="flex items-start gap-1">
-        <span className={cn('min-w-0 flex-1 break-all pt-1 text-sm', mono && 'font-mono', multiline && 'whitespace-pre-wrap text-xs')}>
+        <span
+          className={cn(
+            'min-w-0 flex-1 break-all pt-1 text-sm',
+            mono && 'font-mono',
+            multiline && 'whitespace-pre-wrap text-xs',
+          )}
+        >
           {revealed ? value : '••••••••••••'}
         </span>
         {secret && (
-          <IconAction label={revealed ? `Hide ${label}` : `Reveal ${label}`} onClick={() => setRevealed((r) => !r)}>
+          <IconAction
+            label={revealed ? `Hide ${label}` : `Reveal ${label}`}
+            onClick={() => setRevealed((r) => !r)}
+          >
             {revealed ? <EyeOff /> : <Eye />}
           </IconAction>
         )}

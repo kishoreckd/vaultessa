@@ -310,6 +310,7 @@ async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>)
         isOwner: folder.isOwner !== false,
         memberCount: folder.memberCount ?? 0,
         sharingEnabled: !!folder.wrappedKey,
+        expiresAt: folder.expiresAt,
       };
       try {
         let key = vaultKey;
@@ -347,12 +348,13 @@ async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>)
       await foldersApi.registerFingerprints(entries.slice(offset, offset + 1000));
     }
   }
-  return readable.map(({ id, name, isOwner, memberCount, sharingEnabled }) => ({
+  return readable.map(({ id, name, isOwner, memberCount, sharingEnabled, expiresAt }) => ({
     id,
     name,
     isOwner,
     memberCount,
     sharingEnabled,
+    expiresAt,
   }));
 }
 

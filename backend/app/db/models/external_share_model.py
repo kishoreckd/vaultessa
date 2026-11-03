@@ -33,6 +33,10 @@ class ExternalShare(Base):
     secret_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("secrets.id", ondelete="SET NULL"), index=True
     )
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("folders.id", ondelete="SET NULL"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16), default="item", server_default="item")
     # wiped (set to NULL) as soon as the link is used up, expires on access, or is revoked
     encrypted_data: Mapped[str | None] = mapped_column(Text)
     code_salt: Mapped[str | None] = mapped_column(String(64))
@@ -50,3 +54,15 @@ class ExternalShare(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     owner: Mapped[User] = relationship()
+
+
+class ExternalShareSource(Base):
+    """Items included in a folder snapshot, for revocation when any source is trashed."""
+
+    __tablename__ = "external_share_sources"
+    share_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("external_shares.id", ondelete="CASCADE"), primary_key=True
+    )
+    secret_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("secrets.id", ondelete="CASCADE"), primary_key=True, index=True
+    )

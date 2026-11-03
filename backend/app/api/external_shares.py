@@ -39,8 +39,8 @@ def update_limits(
         request,
         AuditAction.EXTERNAL_SHARE_LIMITS_UPDATE,
         user_id=auth.user_id,
-        target_type="Secret",
-        target_id=share.secret_id,
+        target_type="Folder" if share.kind == "folder" else "Secret",
+        target_id=share.folder_id or share.secret_id,
         details={
             "linkId": str(share.id),
             "maxViews": share.max_views,
@@ -66,9 +66,12 @@ def config(auth: Auth):
 
 @router.get("", response_model=list[ExternalShareOut])
 def list_shares(
-    auth: Auth, db: DbSession, secret_id: uuid.UUID | None = Query(default=None, alias="secretId")
+    auth: Auth,
+    db: DbSession,
+    secret_id: uuid.UUID | None = Query(default=None, alias="secretId"),
+    folder_id: uuid.UUID | None = Query(default=None, alias="folderId"),
 ):
-    return [service.to_out(s) for s in service.list_shares(db, auth.user_id, secret_id)]
+    return [service.to_out(s) for s in service.list_shares(db, auth.user_id, secret_id, folder_id)]
 
 
 @router.post("", response_model=ExternalShareOut, status_code=status.HTTP_201_CREATED)
@@ -79,8 +82,8 @@ def create_share(body: CreateExternalShareRequest, request: Request, auth: Auth,
         request,
         AuditAction.EXTERNAL_SHARE_CREATE,
         user_id=auth.user_id,
-        target_type="Secret",
-        target_id=body.secret_id,
+        target_type="Folder" if body.folder_id else "Secret",
+        target_id=body.folder_id or body.secret_id,
         details={
             "linkId": str(share.id),
             "recipient": body.recipient_email,
@@ -130,8 +133,8 @@ def email_share(
         request,
         AuditAction.EXTERNAL_SHARE_EMAIL,
         user_id=auth.user_id,
-        target_type="Secret",
-        target_id=share.secret_id,
+        target_type="Folder" if share.kind == "folder" else "Secret",
+        target_id=share.folder_id or share.secret_id,
         details={"linkId": str(share.id), "recipient": share.recipient_email},
     )
     db.commit()
@@ -148,8 +151,8 @@ def reopen_share(
         request,
         AuditAction.EXTERNAL_SHARE_REOPEN,
         user_id=auth.user_id,
-        target_type="Secret",
-        target_id=share.secret_id,
+        target_type="Folder" if share.kind == "folder" else "Secret",
+        target_id=share.folder_id or share.secret_id,
         details={
             "linkId": str(share.id),
             "recipient": share.recipient_email,
@@ -170,8 +173,8 @@ def revoke_share(share_id: uuid.UUID, request: Request, auth: Auth, db: DbSessio
         request,
         AuditAction.EXTERNAL_SHARE_REVOKE,
         user_id=auth.user_id,
-        target_type="Secret",
-        target_id=share.secret_id,
+        target_type="Folder" if share.kind == "folder" else "Secret",
+        target_id=share.folder_id or share.secret_id,
         details={"linkId": str(share.id)},
     )
     db.commit()
@@ -203,8 +206,8 @@ def open_share(
                 request,
                 AuditAction.EXTERNAL_SHARE_LOCKED,
                 user_id=share.owner_id,
-                target_type="Secret",
-                target_id=share.secret_id,
+                target_type="Folder" if share.kind == "folder" else "Secret",
+                target_id=share.folder_id or share.secret_id,
                 details={"linkId": str(share.id)},
             )
         db.commit()
@@ -220,8 +223,8 @@ def open_share(
         request,
         AuditAction.EXTERNAL_SHARE_VIEW,
         user_id=share.owner_id,  # shows up in the sender's activity
-        target_type="Secret",
-        target_id=share.secret_id,
+        target_type="Folder" if share.kind == "folder" else "Secret",
+        target_id=share.folder_id or share.secret_id,
         details={"linkId": str(share.id), "viewedAt": datetime.now(UTC).isoformat()},
     )
     db.commit()

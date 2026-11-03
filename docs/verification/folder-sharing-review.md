@@ -1,5 +1,7 @@
 # Folder-sharing verification — 3 November 2026
 
+The later [folder-link and expiry update](folder-links-and-expiry.md) records the expanded feature set and its newer test counts. Measurements and scores below describe the original review baseline.
+
 The folder-sharing implementation and the repository's existing automated checks were reviewed locally on Windows against Docker PostgreSQL. This is an engineering assessment, not an independent security certification or a production performance guarantee.
 
 ## Findings and fixes

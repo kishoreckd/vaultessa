@@ -1,10 +1,12 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.db.model_helpers import utcnow
+from app.db.models.external_share_model import ExternalShare
 from app.db.models.folder_model import Folder
 from app.db.models.user_model import User
 
@@ -42,6 +44,13 @@ def rename_folder(
 def delete_folder(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID) -> None:
     """Secrets in the folder are kept; their access rows fall back to "no folder" (ON DELETE SET NULL)."""
     lock_folders(db, user_id)
+    # Folder snapshot records are retained for history, but their payloads are destroyed.
+    get_owned_folder(db, user_id, folder_id)
+    db.execute(
+        update(ExternalShare)
+        .where(ExternalShare.folder_id == folder_id)
+        .values(revoked_at=utcnow(), encrypted_data=None, owner_key_enc=None)
+    )
     db.delete(get_owned_folder(db, user_id, folder_id))
     db.flush()
 

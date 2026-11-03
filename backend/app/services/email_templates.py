@@ -199,6 +199,7 @@ def _expiry_phrase(expires_at: datetime) -> str:
 def share_invitation(share: ExternalShare, link: str) -> tuple[str, str, str]:
     """Returns (subject, text, html)."""
     sender = share.owner.name
+    folder_snapshot = getattr(share, "kind", "item") == "folder"
     expires = f"{share.expires_at.strftime('%d %b %Y, %H:%M UTC')} ({_expiry_phrase(share.expires_at)})"
     if share.max_views == 1:
         access = "One-time view — deleted right after it's opened"
@@ -213,10 +214,23 @@ def share_invitation(share: ExternalShare, link: str) -> tuple[str, str, str]:
     return render(
         EmailContent(
             template="share_invitation.html",
-            subject=f"{sender} shared a secure item with you",
-            heading="An item has been shared with you",
+            subject=f"{sender} shared a folder snapshot with you"
+            if folder_snapshot
+            else f"{sender} shared a secure item with you",
+            heading="A folder snapshot has been shared with you"
+            if folder_snapshot
+            else "An item has been shared with you",
             preheader="Open your secure invitation. No Vaultessa account needed.",
-            paragraphs=["Open it securely in your browser. You don't need a Vaultessa account."],
+            paragraphs=[
+                "Open it securely in your browser. You don't need a Vaultessa account.",
+                *(
+                    [
+                        "This snapshot contains the selected items as they were when shared. Later changes are not included."
+                    ]
+                    if folder_snapshot
+                    else []
+                ),
+            ],
             button=("Open secure link", link),
             details=details,
             footnote="End-to-end encrypted — Vaultessa can't read what's inside. If you weren't expecting this, ignore this email.",

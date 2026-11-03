@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { ChevronRight, Copy, FileX2, KeyRound, LoaderCircle, RotateCcw, ShieldAlert, Trash2 } from 'lucide-react';
+import {
+  ChevronRight,
+  Copy,
+  FileX2,
+  KeyRound,
+  LoaderCircle,
+  RotateCcw,
+  ShieldAlert,
+  Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { confirmAction } from '@/components/common/confirm-dialog';
 import { IconAction } from '@/components/common/icon-action';
@@ -18,8 +27,15 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { type ExternalShare } from '@/api/sharing/types';
 import { useSession } from '@/stores/session';
 import { ItemAvatar } from '../vault/ItemAvatar';
-import { can, relativeTime, type DecryptedItem } from '../vault/vaultTypes';
-import { buildLink, readOwnerSecret, STATUS_LABEL, timingFor, useReopenShareLink, useRevokeShareLink } from './hooks';
+import { can, relativeTime, type DecryptedItem, type DecryptedFolder } from '../vault/vaultTypes';
+import {
+  buildLink,
+  readOwnerSecret,
+  STATUS_LABEL,
+  timingFor,
+  useReopenShareLink,
+  useRevokeShareLink,
+} from './hooks';
 import { DEFAULT_TIMING, LinkTimingFields, type LinkTimingValue } from './LinkTimingFields';
 
 /** Human status line: "expires in 2 days", "opened 5 minutes ago", "expired yesterday"… */
@@ -39,19 +55,22 @@ export function linkStatusText(link: ExternalShare) {
 }
 
 function accessText(link: ExternalShare) {
-  const kind = link.maxViews === 1 ? 'One-time' : link.maxViews ? `Up to ${link.maxViews} views` : 'Unlimited views';
+  const kind =
+    link.maxViews === 1 ? 'One-time' : link.maxViews ? `Up to ${link.maxViews} views` : 'Unlimited views';
   return `${kind} · ${link.viewCount} ${link.viewCount === 1 ? 'view' : 'views'}`;
 }
 
 export function LinkRow({
   link,
   item,
+  folder,
   showItem,
   onShareAgain,
 }: {
   link: ExternalShare;
   /** current item (needed to re-open with fresh values); undefined if deleted or not loaded */
   item?: DecryptedItem;
+  folder?: DecryptedFolder;
   /** show which item the link shares, linking to it (on the "Shared links" page) */
   showItem?: boolean;
   /** for links that can't be re-opened (created before re-open existed) */
@@ -61,7 +80,8 @@ export function LinkRow({
   const revoke = useRevokeShareLink();
   const [reopening, setReopening] = useState(false);
   const active = link.status === 'active';
-  const canManage = !!item && can(item, 'MANAGE') && !item.decryptFailed;
+  const canManage =
+    (!!item && can(item, 'MANAGE') && !item.decryptFailed) || (!!folder && folder.isOwner !== false);
 
   async function copyLink() {
     const owner = await readOwnerSecret(link);
@@ -107,8 +127,11 @@ export function LinkRow({
               <span className="sr-only">(open item)</span>
             </Link>
           ) : (
-            <span className="truncate font-medium text-muted-foreground" title="The item was deleted. The link record is kept for your history.">
-              Deleted item
+            <span
+              className="truncate font-medium text-muted-foreground"
+              title="The item was deleted. The link record is kept for your history."
+            >
+              {link.kind === 'folder' ? (folder?.name ?? 'Folder snapshot (folder deleted)') : 'Deleted item'}
             </span>
           ))}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -131,17 +154,17 @@ export function LinkRow({
 
       <div className="flex items-center">
         {link.ownerKey && (
-          <IconAction label="Copy link" onClick={copyLink}>
+          <IconAction label="Copy link" className="size-11" onClick={copyLink}>
             <Copy />
           </IconAction>
         )}
         {link.ownerKey && link.hasCode && (
-          <IconAction label="Copy access code" onClick={copyCode}>
+          <IconAction label="Copy access code" className="size-11" onClick={copyCode}>
             <KeyRound />
           </IconAction>
         )}
         {!active && link.ownerKey && canManage && (
-          <Button variant="outline" size="sm" onClick={() => setReopening(true)}>
+          <Button variant="outline" size="sm" className="min-h-11" onClick={() => setReopening(true)}>
             <RotateCcw /> Re-open
           </Button>
         )}
@@ -151,13 +174,15 @@ export function LinkRow({
           </Button>
         )}
         {active && (
-          <IconAction label="Revoke link" className="text-destructive" onClick={onRevoke}>
+          <IconAction label="Revoke link" className="size-11 text-destructive" onClick={onRevoke}>
             <Trash2 />
           </IconAction>
         )}
       </div>
 
-      {item && <ReopenDialog link={link} item={item} open={reopening} onOpenChange={setReopening} />}
+      {(item || folder) && (
+        <ReopenDialog link={link} item={item} open={reopening} onOpenChange={setReopening} />
+      )}
     </li>
   );
 }
@@ -169,7 +194,7 @@ function ReopenDialog({
   onOpenChange,
 }: {
   link: ExternalShare;
-  item: DecryptedItem;
+  item?: DecryptedItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -201,7 +226,10 @@ function ReopenDialog({
         <DialogHeader>
           <DialogTitle>Re-open this link?</DialogTitle>
           <DialogDescription>
-            {link.recipientEmail ?? 'The recipient'} can use the link you already sent. It will show the item’s current details
+            {link.recipientEmail ?? 'The recipient'} can use the link you already sent.{' '}
+            {link.kind === 'folder'
+              ? 'It will show the original folder snapshot'
+              : 'It will show the item’s current details'}
             {link.hasCode ? ', and the same access code still applies' : ''}.
           </DialogDescription>
         </DialogHeader>

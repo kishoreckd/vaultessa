@@ -47,6 +47,7 @@ The server stores only ciphertext and can never read your vault.
 - CSV import (Chrome format) and encrypted backup export / restore
 
 **Sharing**
+- Share whole folders with View/Edit access and optional expiry, or create a secure folder snapshot link
 - Share with other Vaultessa users at four levels: *Login only*, *View*, *Edit* and *Manage*
 - Secure share links for anyone, with no account needed: one-time or time-limited, view limits,
   optional access code, email delivery, revoke and re-open the same link

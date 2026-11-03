@@ -1,8 +1,9 @@
 """Independent folder memberships and encrypted item keys; never materialized as direct grants."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -18,6 +19,7 @@ class FolderShare(Base):
     )
     wrapped_key: Mapped[str] = mapped_column(Text)
     permission: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FolderItemKey(Base):

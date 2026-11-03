@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.schema import ApiModel, Base64Hash, Base64Salt, Email, EncString, RequestModel
 
@@ -10,7 +10,9 @@ ShareStatus = Literal["active", "expired", "used", "revoked", "locked"]
 
 
 class CreateExternalShareRequest(RequestModel):
-    secret_id: uuid.UUID
+    secret_id: uuid.UUID | None = None
+    folder_id: uuid.UUID | None = None
+    secret_ids: Annotated[list[uuid.UUID], Field(max_length=1000)] = Field(default_factory=list)
     # snapshot of the chosen fields, encrypted with a key that only exists in the link fragment
     encrypted_data: EncString
     expires_at: datetime
@@ -21,6 +23,16 @@ class CreateExternalShareRequest(RequestModel):
     recipient_email: Email | None = None
     # the link key etc., encrypted with the owner's vault key (lets the owner re-copy / re-open the link)
     owner_key: EncString | None = None
+
+    @model_validator(mode="after")
+    def check_target(self):
+        if (self.secret_id is None) == (self.folder_id is None):
+            raise ValueError("Choose exactly one item or folder")
+        if self.folder_id is not None and not self.secret_ids:
+            raise ValueError("Choose at least one folder item")
+        if self.secret_id is not None and self.secret_ids:
+            raise ValueError("Item links cannot include folder item IDs")
+        return self
 
 
 class ReopenExternalShareRequest(RequestModel):
@@ -36,6 +48,8 @@ class ReopenExternalShareRequest(RequestModel):
 class ExternalShareOut(ApiModel):
     id: uuid.UUID
     secret_id: uuid.UUID | None
+    folder_id: uuid.UUID | None = None
+    kind: Literal["item", "folder"] = "item"
     status: ShareStatus
     has_code: bool
     max_views: int | None

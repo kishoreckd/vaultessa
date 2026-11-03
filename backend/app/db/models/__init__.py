@@ -6,7 +6,7 @@ from app.db.models.audit_log_model import AuditLog
 from app.db.models.email_outbox_model import EmailOutbox
 from app.db.models.enquiry_model import Enquiry
 from app.db.models.expiry_notification_model import ExpiryNotification
-from app.db.models.external_share_model import ExternalShare
+from app.db.models.external_share_model import ExternalShare, ExternalShareSource
 from app.db.models.folder_model import Folder
 from app.db.models.folder_share_model import FolderItemKey, FolderShare
 from app.db.models.organization_domain_model import OrganizationDomain
@@ -34,6 +34,7 @@ __all__ = [
     "Secret",
     "SecretAccess",
     "ExternalShare",
+    "ExternalShareSource",
     "ExpiryNotification",
     "EmailOutbox",
     "Enquiry",

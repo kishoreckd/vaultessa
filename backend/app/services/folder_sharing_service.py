@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.constants.vault import Permission
 from app.core.errors import AppError
+from app.db.model_helpers import utcnow
 from app.db.models.folder_model import Folder
 from app.db.models.folder_share_model import FolderItemKey, FolderShare
 from app.db.models.secret_access_model import SecretAccess
@@ -18,6 +19,16 @@ from app.db.models.secret_model import Secret
 from app.db.models.user_model import User
 from app.schemas.folders import FolderMember, FolderOut
 from app.services.folders_service import get_owned_folder, lock_folders
+
+
+def active_membership():
+    return or_(FolderShare.expires_at.is_(None), FolderShare.expires_at > utcnow())
+
+
+def checked_member_expiry(value):
+    if value is not None and value <= utcnow():
+        raise AppError.bad_request("Expiry must be in the future")
+    return value
 
 
 @dataclass
@@ -42,6 +53,7 @@ def visible_folders(db: Session, user_id: uuid.UUID):
     counts = dict(
         db.execute(
             select(FolderShare.folder_id, func.count())
+            .where(active_membership())
             .where(
                 FolderShare.folder_id.in_(
                     select(Folder.id).where(
@@ -61,7 +73,9 @@ def visible_folders(db: Session, user_id: uuid.UUID):
         FolderOut.model_validate(f).model_copy(update={"member_count": counts.get(f.id, 0)}) for f in owned
     ]
     for folder, share in db.execute(
-        select(Folder, FolderShare).join(FolderShare).where(FolderShare.user_id == user_id)
+        select(Folder, FolderShare)
+        .join(FolderShare)
+        .where(FolderShare.user_id == user_id, active_membership())
     ):
         result.append(
             FolderOut(
@@ -74,6 +88,7 @@ def visible_folders(db: Session, user_id: uuid.UUID):
                 member_count=counts.get(folder.id, 0),
                 created_at=folder.created_at,
                 updated_at=folder.updated_at,
+                expires_at=share.expires_at,
             )
         )
     return result
@@ -109,7 +124,14 @@ def enable(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID, data):
 def members(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID):
     get_owned_folder(db, user_id, folder_id)
     return [
-        FolderMember(user_id=u.id, name=u.name, email=u.email, permission=s.permission)
+        FolderMember(
+            user_id=u.id,
+            name=u.name,
+            email=u.email,
+            permission=s.permission,
+            expires_at=s.expires_at,
+            active=s.expires_at is None or s.expires_at > utcnow(),
+        )
         for s, u in db.execute(
             select(FolderShare, User)
             .join(User, User.id == FolderShare.user_id)
@@ -136,25 +158,37 @@ def grant(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID, data):
             user_id=data.user_id,
             wrapped_key=data.wrapped_key,
             permission=data.permission,
+            expires_at=checked_member_expiry(data.expires_at),
         )
     )
     db.flush()
 
 
-def change(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID, target_id: uuid.UUID, permission=None):
+def change(
+    db: Session,
+    user_id: uuid.UUID,
+    folder_id: uuid.UUID,
+    target_id: uuid.UUID,
+    permission=None,
+    expires_at=None,
+    update_expiry=False,
+):
     folder = db.get(Folder, folder_id)
     if folder is None:
         raise AppError.not_found("Folder not found")
     lock_folders(db, folder.user_id)
-    if user_id != folder.user_id and (user_id != target_id or permission is not None):
+    if user_id != folder.user_id and (user_id != target_id or permission is not None or update_expiry):
         raise AppError.not_found("Folder not found")
     share = db.get(FolderShare, (folder_id, target_id))
     if share is None:
         raise AppError.not_found("Folder share not found")
-    if permission is None:
+    if permission is None and not update_expiry:
         db.delete(share)
     else:
-        share.permission = permission
+        if permission is not None:
+            share.permission = permission
+        if update_expiry:
+            share.expires_at = checked_member_expiry(expires_at)
     db.flush()
 
 
@@ -182,7 +216,7 @@ def inherited_accesses(db: Session, user_id: uuid.UUID, secret_id=None):
         select(FolderItemKey, FolderShare, Secret)
         .join(FolderShare, FolderShare.folder_id == FolderItemKey.folder_id)
         .join(Secret, Secret.id == FolderItemKey.secret_id)
-        .where(FolderShare.user_id == user_id, Secret.deleted_at.is_(None))
+        .where(FolderShare.user_id == user_id, Secret.deleted_at.is_(None), active_membership())
     )
     if secret_id is not None:
         query = query.where(Secret.id == secret_id)

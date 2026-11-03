@@ -4,7 +4,7 @@ import { foldersApi } from '@/api/folders/api';
 import { queryClient } from '@/lib/queryClient';
 import { useSession } from '@/stores/session';
 import { FolderShareDrawer } from './FolderShareDrawer';
-import type { DecryptedFolder } from './vaultTypes';
+import { relativeTime, type DecryptedFolder } from './vaultTypes';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +64,7 @@ export function FolderManager({
         !(await confirmAction({
           title: 'Delete folder "' + label + '"?',
           description:
-            'Items are kept in All items. Folder members lose inherited access; separate item shares remain.',
+            'Items are kept in All items. Folder members lose access and folder snapshot links are revoked. Separate item shares remain.',
           confirmLabel: 'Delete folder',
           destructive: true,
         }))
@@ -102,7 +102,12 @@ export function FolderManager({
             <span className="flex-1 truncate text-left">
               {folder.name}
               {folder.isOwner === false ? (
-                <span className="block text-xs text-muted-foreground">Shared with you</span>
+                <span
+                  className="block truncate text-xs text-muted-foreground"
+                  title={folder.expiresAt ? new Date(folder.expiresAt).toLocaleString() : undefined}
+                >
+                  Shared with you{folder.expiresAt ? ` · expires ${relativeTime(folder.expiresAt)}` : ''}
+                </span>
               ) : (
                 !!folder.memberCount && (
                   <span className="block text-xs text-muted-foreground">

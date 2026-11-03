@@ -22,6 +22,8 @@ export type Share = {
 export type ExternalShareStatus = 'active' | 'expired' | 'used' | 'revoked' | 'locked';
 
 export type ExternalShare = {
+  folderId: string | null;
+  kind: 'item' | 'folder';
   id: string;
   secretId: string | null;
   status: ExternalShareStatus;
@@ -63,7 +65,9 @@ export type ExternalSharesUpdateLimitsRequest = { expiresAt: string; maxViews: n
 export type ExternalSharesConfigResponse = { emailEnabled: boolean };
 
 export type ExternalSharesCreateRequest = {
-  secretId: string;
+  secretId?: string;
+  folderId?: string;
+  secretIds?: string[];
   encryptedData: string;
   expiresAt: string;
   maxViews?: number | null;

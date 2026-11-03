@@ -66,12 +66,18 @@ export async function shareFolder(
   userId: string,
   publicKey: string,
   permission: 'VIEW' | 'MODIFY',
+  expiresAt?: string | null,
 ) {
   const folder = await prepareFolderSharing(folderId, name);
   if (!folder.wrappedKey) throw new Error('Folder sharing is not ready. Please try again.');
   const raw = await decryptBytes(requireKeys().vaultKey, folder.wrappedKey);
   try {
-    await foldersApi.grant(folderId, { userId, permission, wrappedKey: await rsaWrap(raw, publicKey) });
+    await foldersApi.grant(folderId, {
+      userId,
+      permission,
+      expiresAt,
+      wrappedKey: await rsaWrap(raw, publicKey),
+    });
   } finally {
     raw.fill(0);
   }

@@ -8,7 +8,9 @@ from app.constants.vault import Permission
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import hash_auth_key, verify_auth_key
-from app.db.models.external_share_model import ExternalShare
+from app.db.models.external_share_model import ExternalShare, ExternalShareSource
+from app.db.models.secret_access_model import SecretAccess
+from app.db.models.secret_model import Secret
 from app.schemas.external_shares import (
     CreateExternalShareRequest,
     ExternalShareOut,
@@ -17,18 +19,18 @@ from app.schemas.external_shares import (
     ShareStatus,
     UpdateShareLimitsRequest,
 )
+from app.services.folders_service import get_owned_folder, lock_folders
 from app.services.secrets_service import require_access
 
 
 def update_limits(
     db: Session, user_id: uuid.UUID, share_id: uuid.UUID, data: UpdateShareLimitsRequest
 ) -> ExternalShare:
+    lock_folders(db, user_id)
     share = db.scalar(select(ExternalShare).where(ExternalShare.id == share_id).with_for_update())
     if share is None or share.owner_id != user_id:
         raise AppError.not_found("Link not found")
-    if share.secret_id is None:
-        raise AppError.bad_request("The shared item was deleted")
-    require_access(db, user_id, share.secret_id, Permission.MANAGE)
+    require_share_target(db, user_id, share)
     if status_of(share) != "active":
         raise AppError.bad_request("Re-open this link to give it new limits")
     if data.max_views is not None and data.max_views <= share.view_count:
@@ -66,6 +68,8 @@ def to_out(share: ExternalShare, emailed: bool = False) -> ExternalShareOut:
     return ExternalShareOut(
         id=share.id,
         secret_id=share.secret_id,
+        folder_id=share.folder_id,
+        kind=share.kind,
         status=status_of(share),
         has_code=share.code_hash is not None,
         max_views=share.max_views,
@@ -99,13 +103,37 @@ def _check_code_pair(code_salt: str | None, code_verifier: str | None) -> None:
 
 def create_share(db: Session, user_id: uuid.UUID, data: CreateExternalShareRequest) -> ExternalShare:
     # Sending an item outside the organisation is a "manage" decision, like sharing with a user.
-    require_access(db, user_id, data.secret_id, Permission.MANAGE)
+    if data.folder_id is not None:
+        lock_folders(db, user_id)
+        get_owned_folder(db, user_id, data.folder_id)
+        ids = set(data.secret_ids)
+        owned = set(
+            db.scalars(
+                select(Secret.id)
+                .join(SecretAccess, SecretAccess.secret_id == Secret.id)
+                .where(
+                    Secret.id.in_(ids),
+                    Secret.owner_id == user_id,
+                    Secret.deleted_at.is_(None),
+                    SecretAccess.user_id == user_id,
+                    SecretAccess.folder_id == data.folder_id,
+                )
+            )
+        )
+        if owned != ids or len(ids) != len(data.secret_ids):
+            raise AppError.conflict(
+                "Folder contents changed or include items you do not own. Reload and try again."
+            )
+    else:
+        require_access(db, user_id, data.secret_id, Permission.MANAGE)
     expires_at = _checked_expiry(data.expires_at)
     _check_code_pair(data.code_salt, data.code_verifier)
 
     share = ExternalShare(
         owner_id=user_id,
         secret_id=data.secret_id,
+        folder_id=data.folder_id,
+        kind="folder" if data.folder_id is not None else "item",
         encrypted_data=data.encrypted_data,
         code_salt=data.code_salt,
         code_hash=hash_auth_key(data.code_verifier) if data.code_verifier else None,
@@ -116,19 +144,43 @@ def create_share(db: Session, user_id: uuid.UUID, data: CreateExternalShareReque
     )
     db.add(share)
     db.flush()
+    if data.folder_id is not None:
+        db.add_all(
+            [ExternalShareSource(share_id=share.id, secret_id=secret_id) for secret_id in data.secret_ids]
+        )
+        db.flush()
     return share
+
+
+def require_share_target(db: Session, user_id: uuid.UUID, share: ExternalShare):
+    if share.kind == "folder":
+        if share.folder_id is None:
+            raise AppError.bad_request("The shared folder was deleted")
+        get_owned_folder(db, user_id, share.folder_id)
+        sources = list(
+            db.scalars(
+                select(Secret)
+                .join(ExternalShareSource, ExternalShareSource.secret_id == Secret.id)
+                .where(ExternalShareSource.share_id == share.id)
+            )
+        )
+        if not sources or any(s.deleted_at is not None or s.owner_id != user_id for s in sources):
+            raise AppError.bad_request("A snapshot item was deleted. Create a new link instead.")
+    else:
+        if share.secret_id is None:
+            raise AppError.bad_request("The shared item was deleted")
+        require_access(db, user_id, share.secret_id, Permission.MANAGE)
 
 
 def reopen_share(
     db: Session, user_id: uuid.UUID, share_id: uuid.UUID, data: ReopenExternalShareRequest
 ) -> ExternalShare:
     """Re-activates an existing link URL with fresh ciphertext (the recipient's link works again)."""
+    lock_folders(db, user_id)
     share = db.get(ExternalShare, share_id)
     if share is None or share.owner_id != user_id:
         raise AppError.not_found("Link not found")
-    if share.secret_id is None:
-        raise AppError.bad_request("The item this link shared was deleted")
-    require_access(db, user_id, share.secret_id, Permission.MANAGE)
+    require_share_target(db, user_id, share)
     if share.owner_key_enc is None:
         raise AppError.bad_request(
             "This link was created before re-opening was available. Share again instead."
@@ -147,14 +199,19 @@ def reopen_share(
     return share
 
 
-def list_shares(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID | None) -> list[ExternalShare]:
+def list_shares(
+    db: Session, user_id: uuid.UUID, secret_id: uuid.UUID | None, folder_id=None
+) -> list[ExternalShare]:
     query = select(ExternalShare).where(ExternalShare.owner_id == user_id)
     if secret_id:
         query = query.where(ExternalShare.secret_id == secret_id)
+    if folder_id:
+        query = query.where(ExternalShare.folder_id == folder_id)
     return list(db.scalars(query.order_by(ExternalShare.created_at.desc()).limit(200)))
 
 
 def revoke_share(db: Session, user_id: uuid.UUID, share_id: uuid.UUID) -> ExternalShare:
+    lock_folders(db, user_id)
     share = db.get(ExternalShare, share_id)
     if share is None or share.owner_id != user_id:
         raise AppError.not_found("Link not found")

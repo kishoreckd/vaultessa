@@ -1,13 +1,13 @@
 import uuid
 
-from sqlalchemy import delete, func, select, union, update
+from sqlalchemy import delete, func, or_, select, union, update
 from sqlalchemy.orm import Session, contains_eager, joinedload, object_session
 
 from app.constants.vault import PERMISSION_RANK, KeyWrap, Permission
 from app.core.errors import AppError
 from app.db.model_helpers import utcnow
 from app.db.models.api_token_grant_model import ApiTokenGrant
-from app.db.models.external_share_model import ExternalShare
+from app.db.models.external_share_model import ExternalShare, ExternalShareSource
 from app.db.models.folder_share_model import FolderItemKey, FolderShare
 from app.db.models.secret_access_model import SecretAccess
 from app.db.models.secret_history_model import SecretHistory
@@ -21,6 +21,7 @@ from app.schemas.secrets import (
 )
 from app.services.folder_sharing_service import (
     InheritedAccess,
+    active_membership,
     inherited_accesses,
     set_item_folder,
     set_owned_items_folder,
@@ -65,7 +66,7 @@ def _shared_with_counts(db: Session, secret_ids: list[uuid.UUID]) -> dict[uuid.U
         select(SecretAccess.secret_id, SecretAccess.user_id).where(SecretAccess.secret_id.in_(secret_ids)),
         select(FolderItemKey.secret_id, FolderShare.user_id)
         .join(FolderShare, FolderShare.folder_id == FolderItemKey.folder_id)
-        .where(FolderItemKey.secret_id.in_(secret_ids)),
+        .where(FolderItemKey.secret_id.in_(secret_ids), active_membership()),
     ).subquery()
     rows = db.execute(select(recipients.c.secret_id, func.count()).group_by(recipients.c.secret_id))
     return {secret_id: count - 1 for secret_id, count in rows}
@@ -216,7 +217,14 @@ def delete_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None
     db.execute(delete(ApiTokenGrant).where(ApiTokenGrant.secret_id == secret_id))
     db.execute(
         update(ExternalShare)
-        .where(ExternalShare.secret_id == secret_id)
+        .where(
+            or_(
+                ExternalShare.secret_id == secret_id,
+                ExternalShare.id.in_(
+                    select(ExternalShareSource.share_id).where(ExternalShareSource.secret_id == secret_id)
+                ),
+            )
+        )
         .values(revoked_at=utcnow(), encrypted_data=None, owner_key_enc=None)
     )
     db.flush()

@@ -41,9 +41,9 @@ export const externalSharesApi = {
       body,
     }),
   config: () => apiFetch<ExternalSharesConfigResponse>('/external-shares/config'),
-  list: (secretId?: string) =>
+  list: (secretId?: string, folderId?: string) =>
     apiFetch<ExternalShare[]>(
-      `/external-shares${secretId ? `?secretId=${encodeURIComponent(secretId)}` : ''}`,
+      `/external-shares${secretId ? `?secretId=${encodeURIComponent(secretId)}` : folderId ? `?folderId=${encodeURIComponent(folderId)}` : ''}`,
     ),
   create: (body: ExternalSharesCreateRequest) =>
     apiFetch<ExternalShare>('/external-shares', { method: 'POST', body }),

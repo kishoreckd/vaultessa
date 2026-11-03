@@ -1,5 +1,16 @@
 import { useId, useMemo, useState, type SubmitEvent } from 'react';
-import { Check, CircleAlert, CircleCheck, Copy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, ShieldAlert } from 'lucide-react';
+import {
+  Check,
+  CircleAlert,
+  CircleCheck,
+  Copy,
+  KeyRound,
+  Link2,
+  LoaderCircle,
+  Mail,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
 import { TextareaField, TextField } from '@/components/common/form-field';
@@ -34,7 +45,7 @@ import {
 import { LinkRow } from './LinkRow';
 import { DEFAULT_TIMING, LinkTimingFields, type LinkTimingValue } from './LinkTimingFields';
 
-type Created = { share: ExternalShare; link: string; code?: string; recipient?: string };
+export type Created = { share: ExternalShare; link: string; code?: string; recipient?: string };
 
 export function ShareLinkDrawer({
   item,
@@ -131,7 +142,9 @@ function ShareLinkForm({
   const [timing, setTiming] = useState<LinkTimingValue>(DEFAULT_TIMING);
   const [useCode, setUseCode] = useState(true);
   const [code, setCode] = useState(generateAccessCode);
-  const [include, setInclude] = useState<Record<string, boolean>>(() => Object.fromEntries(fields.map((f) => [f.key, true])));
+  const [include, setInclude] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(fields.map((f) => [f.key, true])),
+  );
   const [message, setMessage] = useState('');
   const [outsideAck, setOutsideAck] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -147,10 +160,14 @@ function ShareLinkForm({
     setFormError(null);
     const ok = validate({
       recipient: emailError(recipient, { optional: true }),
-      code: useCode && code.replace(/[\s-]/g, '').length < 6 ? 'Use an access code of at least 6 characters.' : null,
+      code:
+        useCode && code.replace(/[\s-]/g, '').length < 6
+          ? 'Use an access code of at least 6 characters.'
+          : null,
     });
     if (!ok) return;
-    if (outside && !outsideAck) return setFormError('Confirm that you want to share outside your organisation.');
+    if (outside && !outsideAck)
+      return setFormError('Confirm that you want to share outside your organisation.');
     if (fieldKeys.length === 0) return setFormError('Choose at least one field to share.');
 
     const result = await createLink.mutateAsync({
@@ -200,11 +217,15 @@ function ShareLinkForm({
             <AlertTitle>Outside your organisation</AlertTitle>
             <AlertDescription>
               <span>
-                <strong>{theirDomain}</strong> isn’t <strong>{myDomain}</strong>. Make sure you trust this recipient — the share
-                will be flagged in your activity.
+                <strong>{theirDomain}</strong> isn’t <strong>{myDomain}</strong>. Make sure you trust this
+                recipient — the share will be flagged in your activity.
               </span>
               <span className="mt-2 flex items-center gap-2">
-                <Checkbox id={ackId} checked={outsideAck} onCheckedChange={(v) => setOutsideAck(v === true)} />
+                <Checkbox
+                  id={ackId}
+                  checked={outsideAck}
+                  onCheckedChange={(v) => setOutsideAck(v === true)}
+                />
                 <Label htmlFor={ackId} className="text-sm font-normal text-foreground">
                   I want to share this outside {myDomain}
                 </Label>
@@ -223,7 +244,8 @@ function ShareLinkForm({
               <KeyRound className="size-4" /> Require an access code
             </Label>
             <p className="text-xs text-muted-foreground">
-              The guest types this code to open the link. Send it separately — by phone or SMS — never in the same email.
+              The guest types this code to open the link. Send it separately — by phone or SMS — never in the
+              same email.
             </p>
           </div>
           <Switch id={codeId} checked={useCode} onCheckedChange={setUseCode} />
@@ -256,7 +278,10 @@ function ShareLinkForm({
               </IconAction>
             </div>
             {errors.code && (
-              <p id={`${codeId}-error`} className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+              <p
+                id={`${codeId}-error`}
+                className="flex items-center gap-1.5 text-xs font-medium text-destructive"
+              >
                 <CircleAlert className="size-3.5" />
                 {errors.code}
               </p>
@@ -268,10 +293,15 @@ function ShareLinkForm({
       <section className="grid gap-3">
         <Label className="text-sm font-medium">What to include</Label>
         <div className="grid gap-2 rounded-lg border p-3">
-          {fields.length === 0 && <p className="text-sm text-muted-foreground">This item has no details to share yet.</p>}
+          {fields.length === 0 && (
+            <p className="text-sm text-muted-foreground">This item has no details to share yet.</p>
+          )}
           {fields.map((f) => (
             <label key={f.key} className="flex items-center gap-3 text-sm">
-              <Checkbox checked={include[f.key] ?? false} onCheckedChange={(v) => setInclude((s) => ({ ...s, [f.key]: v === true }))} />
+              <Checkbox
+                checked={include[f.key] ?? false}
+                onCheckedChange={(v) => setInclude((s) => ({ ...s, [f.key]: v === true }))}
+              />
               <span className="flex-1">{f.label}</span>
               {f.secret && <Badge variant="secondary">Sensitive</Badge>}
             </label>
@@ -301,9 +331,15 @@ function CopyRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="grid gap-1.5">
       <Label>{label}</Label>
       <div className="flex gap-2">
-        <Input readOnly value={value} className={cn(mono && 'font-mono tracking-widest')} onFocus={(e) => e.currentTarget.select()} />
+        <Input
+          readOnly
+          value={value}
+          className={cn('min-h-11 min-w-0', mono && 'font-mono tracking-widest')}
+          onFocus={(e) => e.currentTarget.select()}
+        />
         <Button
           variant="outline"
+          className="min-h-11 shrink-0"
           onClick={async () => {
             await copy(value, label);
             setCopied(true);
@@ -317,7 +353,7 @@ function CopyRow({ label, value, mono }: { label: string; value: string; mono?: 
   );
 }
 
-function CreatedView({ created }: { created: Created }) {
+export function CreatedView({ created }: { created: Created }) {
   const config = useShareConfig();
   const emailLink = useEmailShareLink();
   const copy = useClipboard();
@@ -327,7 +363,9 @@ function CreatedView({ created }: { created: Created }) {
   const expiry = new Date(share.expiresAt).toLocaleString();
 
   const invitation = [
-    'I’ve shared a password with you using Vaultessa.',
+    share.kind === 'folder'
+      ? 'I’ve shared a folder snapshot with you using Vaultessa.'
+      : 'I’ve shared a password with you using Vaultessa.',
     '',
     `Open it here: ${link}`,
     once ? `It can be opened once, before ${expiry}.` : `It works until ${expiry}.`,
@@ -335,7 +373,7 @@ function CreatedView({ created }: { created: Created }) {
   ]
     .filter(Boolean)
     .join('\n');
-  const mailto = `mailto:${encodeURIComponent(recipient ?? '')}?subject=${encodeURIComponent('A password shared with you')}&body=${encodeURIComponent(invitation)}`;
+  const mailto = `mailto:${encodeURIComponent(recipient ?? '')}?subject=${encodeURIComponent(share.kind === 'folder' ? 'A folder snapshot shared with you' : 'A password shared with you')}&body=${encodeURIComponent(invitation)}`;
 
   return (
     <div className="grid gap-5">
@@ -343,7 +381,8 @@ function CreatedView({ created }: { created: Created }) {
         <CircleCheck className="text-success" />
         <AlertTitle>Secure link created</AlertTitle>
         <AlertDescription>
-          {once ? 'It can be opened once' : 'It can be opened until it expires'} · expires {relativeTime(share.expiresAt)}
+          {once ? 'It can be opened once' : 'It can be opened until it expires'} · expires{' '}
+          {relativeTime(share.expiresAt)}
           {share.outsideDomain && ' · flagged as outside your organisation'}
         </AlertDescription>
       </Alert>
@@ -352,7 +391,8 @@ function CreatedView({ created }: { created: Created }) {
       {code && <CopyRow label="Access code" value={code} mono />}
       {code && (
         <p className="-mt-2 text-xs text-muted-foreground">
-          Share the code through a different channel than the link (call, SMS, chat). Vaultessa never emails it.
+          Share the code through a different channel than the link (call, SMS, chat). Vaultessa never emails
+          it.
         </p>
       )}
 
@@ -363,32 +403,41 @@ function CreatedView({ created }: { created: Created }) {
         <div className="flex flex-wrap gap-2">
           {recipient && config.data?.emailEnabled && (
             <Button
+              className="min-h-11 max-w-full whitespace-normal break-all"
               disabled={emailLink.isPending || emailed}
               onClick={async () => {
                 await emailLink.mutateAsync({ id: share.id, link });
                 setEmailed(true);
                 toast.success(`Email accepted for ${recipient}`, {
-                  description: code ? 'Send the access code separately. Inbox delivery is not yet confirmed.' : 'The mail server accepted it. Inbox delivery is not yet confirmed.',
+                  description: code
+                    ? 'Send the access code separately. Inbox delivery is not yet confirmed.'
+                    : 'The mail server accepted it. Inbox delivery is not yet confirmed.',
                 });
               }}
             >
-              {emailLink.isPending ? <LoaderCircle className="animate-spin" /> : emailed ? <Check /> : <Mail />}
+              {emailLink.isPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : emailed ? (
+                <Check />
+              ) : (
+                <Mail />
+              )}
               {emailed ? 'Accepted by mail server' : `Email link to ${recipient}`}
             </Button>
           )}
-          <Button variant="outline" asChild>
+          <Button variant="outline" className="min-h-11" asChild>
             <a href={mailto}>
               <Mail /> Open in my email app
             </a>
           </Button>
-          <Button variant="outline" onClick={() => copy(invitation, 'Message')}>
+          <Button variant="outline" className="min-h-11" onClick={() => copy(invitation, 'Message')}>
             <Copy /> Copy message
           </Button>
         </div>
         {recipient && config.data?.emailEnabled && (
           <p className="text-xs text-muted-foreground">
-            When Vaultessa emails the link, our server handles it briefly while sending. For the strictest privacy, use your
-            own email app.
+            When Vaultessa emails the link, our server handles it briefly while sending. For the strictest
+            privacy, use your own email app.
           </p>
         )}
       </div>
