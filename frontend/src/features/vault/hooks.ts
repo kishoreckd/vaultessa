@@ -6,7 +6,8 @@ import { secretsApi } from '@/api/vault/api';
 import { sharingApi } from '@/api/sharing/api';
 import { type Permission } from '@/api/sharing/types';
 import { type SecretType } from '@/api/vault/types';
-import { decryptJson, decryptString, encryptString, folderNameFingerprint, normalizeFolderName } from '../../lib/crypto';
+import { decryptJson, decryptString, encryptString, encryptBytes, importAesKey, rsaUnwrap, folderNameFingerprint, normalizeFolderName } from '../../lib/crypto';
+import { destinationKey, ownerFolderKey } from './folderCrypto';
 import { requireKeys } from '../../stores/session';
 import {
   decryptItem,
@@ -57,11 +58,14 @@ export function useSaveSecret() {
   return useMutation({
     mutationFn: async ({ existing, type, data, folderId, expiresAt }: SaveInput) => {
       if (!existing) {
+        const encrypted = await encryptNewSecret(data);
+        const key = await destinationKey(folderId);
         return secretsApi.create({
           type,
           folderId,
           expiresAt,
-          ...(await encryptNewSecret(data)),
+          ...encrypted,
+          folderWrappedKey: key ? await withSecretKey({ ...encrypted, keyWrap: 'VAULT' }, (_key, raw) => encryptBytes(key, raw)) : undefined,
         });
       }
       let item = existing as DecryptedItem | Awaited<ReturnType<typeof secretsApi.update>>;
@@ -76,7 +80,11 @@ export function useSaveSecret() {
           expiresAt,
         });
       }
-      if (folderId !== existing.folderId) item = await secretsApi.updateAccess(existing.id, { folderId });
+      if (folderId !== existing.folderId) {
+        const key = await destinationKey(folderId);
+        item = await secretsApi.updateAccess(existing.id, { folderId,
+          folderWrappedKey: key ? await withSecretKey(existing, (_key, raw) => encryptBytes(key, raw)) : undefined });
+      }
       return item;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
@@ -128,7 +136,15 @@ export function useMoveSecrets() {
   return useMutation({
     mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
       if (!ids.length) return { moved: [], failed: [] };
-      return secretsApi.move(ids, folderId);
+      const key = await destinationKey(folderId);
+      const folderWrappedKeys: Record<string, string> = {};
+      if (key) {
+        const selected = new Set(ids);
+        for (const item of await secretsApi.list()) {
+          if (selected.has(item.id) && item.isOwner) folderWrappedKeys[item.id] = await withSecretKey(item, (_key, raw) => encryptBytes(key, raw));
+        }
+      }
+      return key ? secretsApi.move(ids, folderId, folderWrappedKeys) : secretsApi.move(ids, folderId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.items }),
   });
@@ -259,11 +275,18 @@ export function useShareMutations(item: DecryptedItem) {
 async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>): Promise<DecryptedFolder[]> {
   const { vaultKey, folderNameKey } = requireKeys();
   const readable = await Promise.all(folders.map(async folder => {
-    try { return { id: folder.id, name: await decryptString(vaultKey, folder.encryptedName), readable: true }; }
+    try {
+      let key = vaultKey;
+      if (folder.isOwner === false) {
+        const raw = await rsaUnwrap(folder.wrappedKey!, requireKeys().privateKey);
+        try { key = await importAesKey(raw); } finally { raw.fill(0); }
+      }
+      return { id: folder.id, name: await decryptString(key, folder.encryptedName), readable: true };
+    }
     catch { return { id: folder.id, name: 'Unreadable folder', readable: false }; }
   }));
   if (folderNameKey) {
-    const missing = folders.filter(folder => !folder.nameFingerprint);
+    const missing = folders.filter(folder => folder.isOwner !== false && !folder.nameFingerprint);
     const entries = await Promise.all(missing.flatMap(folder => {
       const value = readable.find(item => item.id === folder.id);
       return value?.readable ? [folderNameFingerprint(folderNameKey, value.name).then(nameFingerprint => ({ id: folder.id, nameFingerprint }))] : [];
@@ -272,7 +295,10 @@ async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>)
       await foldersApi.registerFingerprints(entries.slice(offset, offset + 1000));
     }
   }
-  return readable.map(({ id, name }) => ({ id, name }));
+  return readable.map(({ id, name }) => {
+    const folder = folders.find(f => f.id === id)!;
+    return { id, name, isOwner: folder.isOwner !== false, memberCount: folder.memberCount ?? 0, sharingEnabled: !!folder.wrappedKey };
+  });
 }
 
 export function useRenameFolder() {
@@ -288,7 +314,11 @@ export function useRenameFolder() {
       if (existing.some(folder => folder.id !== id && normalizeFolderName(folder.name) === normalizeFolderName(trimmed))) {
         throw new Error('A folder with this name already exists');
       }
-      return foldersApi.rename(id, await encryptString(vaultKey, trimmed), await folderNameFingerprint(folderNameKey, trimmed));
+      const folder = (await foldersApi.list()).find(f => f.id === id);
+      const sharedName = folder?.wrappedKey ? await encryptString(await ownerFolderKey(folder), trimmed) : undefined;
+      const encryptedName = await encryptString(vaultKey, trimmed);
+      const fingerprint = await folderNameFingerprint(folderNameKey, trimmed);
+      return sharedName ? foldersApi.rename(id, encryptedName, fingerprint, sharedName) : foldersApi.rename(id, encryptedName, fingerprint);
     },
     onError: error => toast.error(error instanceof Error ? error.message : 'Could not rename folder'),
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.folders }),

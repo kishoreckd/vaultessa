@@ -3,6 +3,7 @@ import { useId, useState, type SubmitEvent } from 'react';
 import { LoaderCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Drawer } from '@/components/common/drawer';
+import { confirmAction } from '@/components/common/confirm-dialog';
 import { FormField, TextareaField, TextField } from '@/components/common/form-field';
 import { PasswordInput } from '@/components/common/password-input';
 import { CardScanner } from './CardScanner';
@@ -114,6 +115,12 @@ function SecretForm({
       checks[f.key] = f.link ? urlError(value) : (f.validate?.(value) ?? null);
     }
     if (!validate(checks)) return;
+    const destination = folders.find(folder => folder.id === folderId);
+    const previous = folders.find(folder => folder.id === existing?.folderId);
+    if (folderId !== existing?.folderId && (destination?.memberCount || previous?.memberCount) &&
+      !await confirmAction({ title: 'Save item and change access?',
+        description: `${destination?.memberCount ? 'Everyone in the destination folder will gain access. ' : ''}${previous?.memberCount ? 'Access inherited from the previous folder will end. ' : ''}Separate item shares remain.`,
+        confirmLabel: 'Save item' })) return;
 
     // "github.com" → "https://github.com" so links in the detail view work.
     let payload = data;
@@ -210,19 +217,21 @@ function SecretForm({
         hint="Optional. The expiry date is stored as scheduling metadata. Reminder emails go to the owner; names and passwords remain encrypted. Changing a password does not automatically update its expiry." />
 
       <FormField id={`${formId}-folder`} label="Folder">
-        <Select value={folderId ?? NO_FOLDER} onValueChange={(v) => setFolderId(v === NO_FOLDER ? null : v)}>
+        <Select disabled={!!existing?.inheritedFolderId} value={folderId ?? NO_FOLDER} onValueChange={(v) => setFolderId(v === NO_FOLDER ? null : v)}>
           <SelectTrigger id={`${formId}-folder`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NO_FOLDER}>No folder</SelectItem>
-            {folders.map((f) => (
+            {folders.filter(f => f.isOwner !== false || f.id === existing?.folderId).map((f) => (
               <SelectItem key={f.id} value={f.id}>
-                {f.name}
+                {f.name}{f.memberCount ? ' (shared)' : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {existing?.inheritedFolderId ? <p className="text-xs text-muted-foreground">The owner manages this shared folder. Your changes are visible to everyone with access.</p> :
+          !!folders.find(f => f.id === folderId)?.memberCount && <p className="text-xs text-muted-foreground">Everyone with access to this folder will also have access to this item.</p>}
       </FormField>
     </form>
   );

@@ -109,6 +109,7 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
         </div>
         <IconAction
           label={item.favorite ? 'Remove from favourites' : 'Add to favourites'}
+          disabled={!!item.inheritedFolderId}
           aria-pressed={item.favorite}
           onClick={() => toggleFavorite.mutate(item)}
         >
@@ -125,6 +126,7 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
           </p>
         </div>
       )}
+      {item.inheritedFolderId && <p className="border-b px-6 py-3 text-sm text-muted-foreground">Access comes from this shared folder. The owner manages membership. To remove folder access, use Leave folder in Manage folders.</p>}
 
       {item.isOwner && <SharingSummary item={item} links={links} />}
       {item.expiresAt && <p className="border-b px-6 py-3 text-sm"><strong>{Date.parse(item.expiresAt) <= Date.now() ? 'Expired' : 'Expires'}</strong> {new Date(item.expiresAt).toLocaleString()}. {item.isOwner ? 'Expiry reminders follow your email preferences.' : 'The owner manages expiry reminders.'}</p>}
@@ -192,9 +194,9 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
             <History /> History
           </Button>
         )}
-        <Button variant="destructive" className="ml-auto min-h-11" disabled={remove.isPending || leave.isPending} onClick={item.isOwner ? onDelete : onLeave}>
+        {!item.inheritedFolderId && <Button variant="destructive" className="ml-auto min-h-11" disabled={remove.isPending || leave.isPending} onClick={item.isOwner ? onDelete : onLeave}>
           {remove.isPending || leave.isPending ? <LoaderCircle className="animate-spin" /> : <Trash2 />} {remove.isPending ? 'Moving to Trash...' : leave.isPending ? 'Removing...' : item.isOwner ? 'Move to Trash' : 'Remove'}
-        </Button>
+        </Button>}
       </CardFooter>
 
       {canManage && (

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field
 
@@ -13,6 +13,7 @@ class CreateSecretRequest(RequestModel):
     encrypted_data: EncString
     # the new secret key, wrapped with the creator's vault key
     wrapped_key: EncKey
+    folder_wrapped_key: EncKey | None = None
     folder_id: uuid.UUID | None = None
     favorite: bool = False
     expires_at: AwareDatetime | None = None
@@ -32,6 +33,7 @@ class UpdateAccessRequest(RequestModel):
     favorite: bool | None = None
     # accept an RSA share by re-wrapping the secret key with your own vault key
     wrapped_key: EncKey | None = None
+    folder_wrapped_key: EncKey | None = None
 
 
 class UserBrief(ApiModel):
@@ -50,7 +52,9 @@ class VaultItem(ApiModel):
     owner: UserBrief
     is_owner: bool
     wrapped_key: str
-    key_wrap: KeyWrap
+    key_wrap: KeyWrap | Literal["FOLDER"]
+    inherited_folder_id: uuid.UUID | None = None
+    shared_folder_ids: list[uuid.UUID] = Field(default_factory=list)
     permission: Permission
     folder_id: uuid.UUID | None
     favorite: bool
@@ -72,6 +76,7 @@ class HistoryEntry(ApiModel):
 class MoveSecretsRequest(RequestModel):
     ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=1000)]
     folder_id: uuid.UUID | None = None
+    folder_wrapped_keys: dict[uuid.UUID, EncKey] = Field(default_factory=dict, max_length=1000)
 
 
 class MoveSecretsResult(ApiModel):

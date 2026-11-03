@@ -2,14 +2,14 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 import { FolderManager } from '../src/features/vault/FolderManager';
-const state = vi.hoisted(() => ({ pending: false, error: false, creating: false }));
+const state = vi.hoisted(() => ({ pending: false, error: false, creating: false, recipient: false }));
 vi.mock('../src/features/vault/hooks', () => ({
-  useFolders: () => ({ data: [{ id: 'folder', name: 'Social' }], isPending: state.pending, isError: state.error, isSuccess: !state.pending && !state.error }),
+  useFolders: () => ({ data: [{ id: 'folder', name: 'Social', isOwner: !state.recipient, memberCount: 2 }], isPending: state.pending, isError: state.error, isSuccess: !state.pending && !state.error }),
   useCreateFolder: () => ({ isPending: state.creating }),
   useRenameFolder: () => ({ isPending: false }),
   useDeleteFolder: () => ({ isPending: false }),
 }));
-beforeEach(() => { state.pending = false; state.error = false; state.creating = false; });
+beforeEach(() => { state.pending = false; state.error = false; state.creating = false; state.recipient = false; });
 const render = () => renderToStaticMarkup(<TooltipProvider><FolderManager onSelect={() => {}} onDeleted={() => {}} counts={{ folder: 3 }} /></TooltipProvider>);
 it('exposes named rename and delete actions with touch targets', () => {
   const html = render();
@@ -34,4 +34,18 @@ it('announces creation and disables conflicting actions', () => {
   expect(html).toContain('Creating folder...');
   expect(html).toContain('aria-busy="true"');
   expect(html).toMatch(/aria-label="Delete folder Social"[^>]*disabled/);
+});
+it('makes folder sharing and membership visible without hover', () => {
+  const html = render();
+  expect(html).toContain('Share folder Social');
+  expect(html).toContain('Shared with 2');
+});
+it('offers recipients a touch-sized leave action while keeping management owner-only', () => {
+  state.recipient = true;
+  const html = render();
+  expect(html).toContain('Shared with you');
+  expect(html).toContain('Leave folder Social');
+  expect(html).not.toContain('Rename folder Social');
+  expect(html).not.toContain('Delete folder Social');
+  expect(html).not.toContain('Share folder Social');
 });

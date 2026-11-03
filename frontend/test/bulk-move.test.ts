@@ -10,6 +10,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
 }));
 vi.mock('../src/api/vault/api', () => ({ secretsApi: { move: mocks.update } }));
+vi.mock('../src/api/folders/api', () => ({ foldersApi: { list: async () => [{ id: 'folder' }] } }));
 beforeEach(() => { vi.resetAllMocks(); useMoveSecrets(); });
 it('sends the selected items in one batch request', async () => {
   mocks.update.mockResolvedValue({ moved: ['one', 'two'], failed: [] });

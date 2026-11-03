@@ -24,5 +24,7 @@ class Folder(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     encrypted_name: Mapped[str] = mapped_column(Text)
+    wrapped_key: Mapped[str | None] = mapped_column(Text)
+    shared_name: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()

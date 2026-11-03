@@ -15,8 +15,14 @@ import type { DecryptedItem, SecretPayload } from './vaultTypes';
 
 type WrappedKeyRef = Pick<VaultItem, 'wrappedKey' | 'keyWrap'>;
 
-function unwrapSecretKeyBytes(item: WrappedKeyRef): Promise<Bytes> {
+async function unwrapSecretKeyBytes(item: WrappedKeyRef): Promise<Bytes> {
   const { vaultKey, privateKey } = requireKeys();
+  if (item.keyWrap === 'FOLDER') {
+    const envelope = JSON.parse(item.wrappedKey) as { folderKey: string; itemKey: string };
+    const raw = await rsaUnwrap(envelope.folderKey, privateKey);
+    try { return await decryptBytes(await importAesKey(raw), envelope.itemKey); }
+    finally { raw.fill(0); }
+  }
   return item.keyWrap === 'VAULT' ? decryptBytes(vaultKey, item.wrappedKey) : rsaUnwrap(item.wrappedKey, privateKey);
 }
 

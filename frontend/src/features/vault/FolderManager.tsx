@@ -1,5 +1,10 @@
 import { useRef, useState, type SubmitEvent } from 'react';
-import { FolderPlus, LoaderCircle, Pencil, Trash2, X } from 'lucide-react';
+import { FolderPlus, LoaderCircle, Pencil, Trash2, Users, LogOut, X } from 'lucide-react';
+import { foldersApi } from '@/api/folders/api';
+import { queryClient } from '@/lib/queryClient';
+import { useSession } from '@/stores/session';
+import { FolderShareDrawer } from './FolderShareDrawer';
+import type { DecryptedFolder } from './vaultTypes';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,10 +21,13 @@ export function FolderManager({ onSelect, onDeleted, counts, selectedId }: {
   const rename = useRenameFolder();
   const remove = useDeleteFolder();
   const [name, setName] = useState('');
+  const [sharing, setSharing] = useState<DecryptedFolder | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const userId = useSession(s => s.account?.id);
   const [editing, setEditing] = useState<string | null>(null);
   const [renamed, setRenamed] = useState('');
   const guard = useRef(false);
-  const busy = create.isPending || rename.isPending || remove.isPending;
+  const busy = create.isPending || rename.isPending || remove.isPending || leaving;
   async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = (editing ? renamed : name).trim();
@@ -35,7 +43,7 @@ export function FolderManager({ onSelect, onDeleted, counts, selectedId }: {
     if (guard.current) return;
     guard.current = true;
     try {
-      if (!await confirmAction({ title: 'Delete folder "' + label + '"?', description: 'Items are kept in All items.', confirmLabel: 'Delete folder', destructive: true })) return;
+      if (!await confirmAction({ title: 'Delete folder "' + label + '"?', description: 'Items are kept in All items. Folder members lose inherited access; separate item shares remain.', confirmLabel: 'Delete folder', destructive: true })) return;
       await remove.mutateAsync(id);
       if (editing === id) setEditing(null);
       onDeleted(id);
@@ -48,12 +56,22 @@ export function FolderManager({ onSelect, onDeleted, counts, selectedId }: {
     {folders.isError && <Button variant="outline" onClick={() => void folders.refetch()}>Could not load folders. Retry</Button>}
     {folders.data?.map(folder => <div key={folder.id} className="flex min-w-0 items-center gap-1">
       <Button variant={selectedId === folder.id ? 'secondary' : 'ghost'} className="min-h-11 min-w-0 flex-1 justify-start" onClick={() => onSelect(folder.id)}>
-        <span className="flex-1 truncate text-left">{folder.name}</span><span className="text-xs text-muted-foreground">{counts[folder.id] ?? 0}</span>
+        <span className="flex-1 truncate text-left">{folder.name}{folder.isOwner === false ? <span className="block text-xs text-muted-foreground">Shared with you</span> : !!folder.memberCount && <span className="block text-xs text-muted-foreground">Shared with {folder.memberCount}</span>}</span><span className="text-xs text-muted-foreground">{counts[folder.id] ?? 0}</span>
       </Button>
+      {folder.isOwner !== false && <IconAction label={'Share folder ' + folder.name} className="size-11 shrink-0" disabled={busy} onClick={() => setSharing(folder)}><Users /></IconAction>}
+      {folder.isOwner === false && <IconAction label={'Leave folder ' + folder.name} className="size-11 shrink-0" disabled={busy} onClick={async () => {
+        if (!userId || !await confirmAction({ title: `Leave “${folder.name}”?`, description: 'You lose folder access. Separate item shares remain.', confirmLabel: 'Leave folder', destructive: true })) return;
+        setLeaving(true);
+        try { await foldersApi.revoke(folder.id, userId); await queryClient.invalidateQueries({ queryKey: ['vault'] }); onDeleted(folder.id); toast.success('Left shared folder'); }
+        catch { toast.error('Could not leave folder. Try again.'); }
+        finally { setLeaving(false); }
+      }}><LogOut /></IconAction>}
+      {folder.isOwner !== false && <>
       <IconAction label={'Rename folder ' + folder.name} className="size-11 shrink-0" disabled={busy} onClick={() => { setEditing(folder.id); setRenamed(folder.name); }}><Pencil /></IconAction>
       <IconAction label={'Delete folder ' + folder.name} variant="destructive" className="size-11 shrink-0" disabled={busy} onClick={() => void deleteFolder(folder.id, folder.name)}>
         {remove.isPending && remove.variables === folder.id ? <LoaderCircle className="animate-spin" /> : <Trash2 />}
       </IconAction>
+      </>}
     </div>)}
     <form onSubmit={save} className="flex min-w-0 gap-1">
       <Input autoFocus={!!editing} aria-label={editing ? 'Rename folder' : 'New folder name'} placeholder={editing ? 'Folder name' : 'New folder'} maxLength={200} className="h-11 min-w-0 flex-1" disabled={busy || !folders.isSuccess} value={editing ? renamed : name} onChange={event => editing ? setRenamed(event.target.value) : setName(event.target.value)} />
@@ -63,5 +81,6 @@ export function FolderManager({ onSelect, onDeleted, counts, selectedId }: {
       {editing && <IconAction label="Cancel rename" className="size-11" disabled={busy} onClick={() => setEditing(null)}><X /></IconAction>}
     </form>
     {busy && <p role="status" className="text-xs text-muted-foreground">{create.isPending ? 'Creating folder...' : rename.isPending ? 'Renaming folder...' : 'Deleting folder...'}</p>}
+    {sharing && <FolderShareDrawer folder={sharing} onClose={() => setSharing(null)} />}
   </div>;
 }

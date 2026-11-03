@@ -16,7 +16,7 @@ export type SecretPayload = {
 
 export type DecryptedItem = VaultItem & { data: SecretPayload; decryptFailed: boolean };
 
-export type DecryptedFolder = { id: string; name: string };
+export type DecryptedFolder = { id: string; name: string; isOwner?: boolean; memberCount?: number; sharingEnabled?: boolean };
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   LOGIN_ONLY: 'Login only',

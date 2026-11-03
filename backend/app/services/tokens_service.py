@@ -48,7 +48,9 @@ def _validated_grants(db: Session, user_id: uuid.UUID, grants: list[TokenGrantIn
             raise AppError.bad_request("An item was listed twice")
         seen.add(grant.secret_id)
         # A token can only read what its creator can see (not "login only" items).
-        require_access(db, user_id, grant.secret_id, Permission.VIEW)
+        access = require_access(db, user_id, grant.secret_id, Permission.VIEW)
+        if access.key_wrap == "FOLDER":
+            raise AppError.bad_request("Folder-inherited items cannot be added to machine tokens")
     return grants
 
 

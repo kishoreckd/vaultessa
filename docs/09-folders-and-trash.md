@@ -1,5 +1,21 @@
 # Folder management and Trash
 
+## Shared folders
+
+Owners can share a folder with registered Vaultessa users using View or Edit access. The folder and its current and future items appear in the recipient's folder list, marked “Shared with you”. Owners manage membership, rename folders, and add or move items; editors can update existing items. Public folder links, delegated management, nested folders, and machine-token access through folder membership are not included.
+
+The browser creates a random AES folder key when sharing is first enabled. It encrypts a separate shared folder name and wraps every current item key under this folder key. The owner stores the folder key encrypted under their vault key; each member receives an RSA-OAEP encrypted copy. New items and moves into an enabled folder must include their client-generated encrypted item key. Enabling sharing validates the exact current contents atomically; stale clients cannot silently omit items. Folders containing items owned by other people cannot be enabled for sharing.
+
+`folder_shares` holds membership and View/Edit permissions; `folder_item_keys` holds owner-controlled contents and encrypted item keys. Folder grants are never converted into independent direct item grants. Effective access uses the highest permission from the direct share and folder membership. Moving out, deleting the folder, leaving, or removing a member ends inherited access while preserving independent direct shares. Trash removes the folder key wrapper and unfiles the item; restoration never restores inherited access. A recipient's private organisation of a directly shared item cannot change the owner's folder contents.
+
+The API exposes `POST /folders/{id}/sharing`, `GET/POST /folders/{id}/members`, and `PATCH/DELETE /folders/{id}/members/{userId}`. Recipients can delete only their own membership. Folder listing returns recipient-specific wrapped folder keys; vault responses use a `FOLDER` key envelope for inherited-only access. Folder names, item payloads, and raw encryption keys remain encrypted on the server. Both new tables enable PostgreSQL RLS, matching the existing backend-only database access model.
+
+The sharing drawer occupies the mobile screen width, has a scrolling body and fixed footer, and stacks member details above touch-sized permission/removal controls. Folder actions are visible without hover. Item creation and moves show sharing scope and ask for confirmation when folder access changes. Recipients leave from Manage folders.
+
+Revocation removes future server access. As with existing direct shares, encryption keys are not rotated in this version. A removed member may retain previously retrieved keys or content, and previously copied secrets cannot be erased. Clients refresh on normal query refetch; there is no real-time remote wipe of already-open content. Sharing with a new folder member includes existing item history because versions use the item's existing key.
+
+Apply migration `c35d91e229bb` before serving the updated API: from `backend`, run `.venv/Scripts/python.exe -m alembic upgrade head`. Deploy the frontend and backend together; older clients cannot add items to enabled folders without the required key wrappers.
+
 The vault supports create, rename, select and delete folder actions on desktop and in the mobile Manage folders dialog. Deleting a folder preserves its items, which become unfiled.
 
 ## Folder identity

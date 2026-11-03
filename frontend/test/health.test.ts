@@ -17,6 +17,8 @@ function item(
 ) {
   return {
     id,
+    inheritedFolderId: null,
+    sharedFolderIds: [],
     organizationId: null,
     expiresAt: null,
     type: 'LOGIN',

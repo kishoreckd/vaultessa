@@ -30,7 +30,7 @@ def list_trash(auth: Auth, db: DbSession):
 
 @router.post("/move", response_model=MoveSecretsResult)
 def move_secrets(body: MoveSecretsRequest, request: Request, auth: Auth, db: DbSession):
-    result = service.move_secrets(db, auth.user_id, body.ids, body.folder_id)
+    result = service.move_secrets(db, auth.user_id, body.ids, body.folder_id, body.folder_wrapped_keys)
     for secret_id in result["moved"]:
         record(
             db,

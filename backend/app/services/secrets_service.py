@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, union, update
 from sqlalchemy.orm import Session, contains_eager, joinedload, object_session
 
 from app.constants.vault import PERMISSION_RANK, KeyWrap, Permission
@@ -8,6 +8,7 @@ from app.core.errors import AppError
 from app.db.model_helpers import utcnow
 from app.db.models.api_token_grant_model import ApiTokenGrant
 from app.db.models.external_share_model import ExternalShare
+from app.db.models.folder_share_model import FolderItemKey, FolderShare
 from app.db.models.secret_access_model import SecretAccess
 from app.db.models.secret_history_model import SecretHistory
 from app.db.models.secret_model import Secret
@@ -18,7 +19,8 @@ from app.schemas.secrets import (
     UserBrief,
     VaultItem,
 )
-from app.services.folders_service import get_owned_folder
+from app.services.folder_sharing_service import inherited_accesses, set_item_folder
+from app.services.folders_service import get_owned_folder, lock_folders
 
 
 def has_permission(actual: Permission, required: Permission) -> bool:
@@ -37,10 +39,16 @@ def require_access(
     if secret is None or secret.deleted_at is not None:
         raise AppError.not_found("Secret not found")
     access = db.get(SecretAccess, {"secret_id": secret_id, "user_id": user_id})
+    inherited = inherited_accesses(db, user_id, secret_id)
+    if inherited and (
+        access is None or PERMISSION_RANK[inherited[0].permission] > PERMISSION_RANK[access.permission]
+    ):
+        access = inherited[0]
     if access is None or access.secret.deleted_at is not None:
         raise AppError.not_found("Secret not found")
     if not has_permission(access.permission, required):
         raise AppError.forbidden()
+    access.shared_folder_ids = [a.folder_id for a in inherited]
     return access
 
 
@@ -48,18 +56,20 @@ def _shared_with_counts(db: Session, secret_ids: list[uuid.UUID]) -> dict[uuid.U
     """Number of people besides the owner who can open each secret (one grouped query)."""
     if not secret_ids:
         return {}
-    rows = db.execute(
-        select(SecretAccess.secret_id, func.count())
-        .where(SecretAccess.secret_id.in_(secret_ids))
-        .group_by(SecretAccess.secret_id)
-    )
+    recipients = union(
+        select(SecretAccess.secret_id, SecretAccess.user_id).where(SecretAccess.secret_id.in_(secret_ids)),
+        select(FolderItemKey.secret_id, FolderShare.user_id)
+        .join(FolderShare, FolderShare.folder_id == FolderItemKey.folder_id)
+        .where(FolderItemKey.secret_id.in_(secret_ids)),
+    ).subquery()
+    rows = db.execute(select(recipients.c.secret_id, func.count()).group_by(recipients.c.secret_id))
     return {secret_id: count - 1 for secret_id, count in rows}
 
 
 def to_vault_item(access: SecretAccess, shared_with: int | None = None) -> VaultItem:
     secret = access.secret
     if shared_with is None:
-        db = object_session(access)
+        db = object_session(secret)
         shared_with = _shared_with_counts(db, [secret.id]).get(secret.id, 0) if db else 0
     return VaultItem(
         id=secret.id,
@@ -71,6 +81,8 @@ def to_vault_item(access: SecretAccess, shared_with: int | None = None) -> Vault
         is_owner=secret.owner_id == access.user_id,
         wrapped_key=access.wrapped_key,
         key_wrap=access.key_wrap,
+        inherited_folder_id=getattr(access, "inherited_folder_id", None),
+        shared_folder_ids=getattr(access, "shared_folder_ids", []),
         permission=access.permission,
         folder_id=access.folder_id,
         favorite=access.favorite,
@@ -93,11 +105,20 @@ def list_vault(db: Session, user_id: uuid.UUID, trash: bool = False) -> list[Vau
         .order_by(Secret.updated_at.desc())
     )
     accesses = list(db.scalars(query).unique())
+    if not trash:
+        by_id = {a.secret_id: a for a in accesses}
+        for inherited in inherited_accesses(db, user_id):
+            direct = by_id.get(inherited.secret_id)
+            if direct is None or PERMISSION_RANK[inherited.permission] > PERMISSION_RANK[direct.permission]:
+                by_id[inherited.secret_id] = inherited
+            by_id[inherited.secret_id].shared_folder_ids = [inherited.folder_id]
+        accesses = list(by_id.values())
     counts = _shared_with_counts(db, [a.secret_id for a in accesses])
     return [to_vault_item(a, counts.get(a.secret_id, 0)) for a in accesses]
 
 
 def create_secret(db: Session, user_id: uuid.UUID, data: CreateSecretRequest) -> VaultItem:
+    lock_folders(db, user_id)
     if data.folder_id:
         get_owned_folder(db, user_id, data.folder_id)
     secret = Secret(
@@ -114,7 +135,9 @@ def create_secret(db: Session, user_id: uuid.UUID, data: CreateSecretRequest) ->
     )
     db.add_all([secret, access])
     db.flush()
-    return to_vault_item(access, shared_with=0)
+    set_item_folder(db, user_id, secret.id, data.folder_id, data.folder_wrapped_key)
+    db.flush()
+    return to_vault_item(access)
 
 
 def update_secret(
@@ -146,12 +169,18 @@ def update_secret(
 def update_own_access(
     db: Session, user_id: uuid.UUID, secret_id: uuid.UUID, data: UpdateAccessRequest
 ) -> VaultItem:
-    access = require_access(db, user_id, secret_id, Permission.LOGIN_ONLY)
+    lock_folders(db, user_id)
+    require_access(db, user_id, secret_id, Permission.LOGIN_ONLY)
+    access = db.get(SecretAccess, (secret_id, user_id))
+    if access is None:
+        raise AppError.bad_request("This item belongs to a shared folder. Manage access from the folder.")
     fields = data.model_fields_set
 
     if "folder_id" in fields:
         if data.folder_id:
             get_owned_folder(db, user_id, data.folder_id)
+        if data.folder_id != access.folder_id:
+            set_item_folder(db, user_id, secret_id, data.folder_id, data.folder_wrapped_key)
         access.folder_id = data.folder_id
     if "favorite" in fields and data.favorite is not None:
         access.favorite = data.favorite
@@ -165,10 +194,16 @@ def update_own_access(
 
 
 def delete_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None:
+    lock_folders(db, user_id)
     access = require_access(db, user_id, secret_id, Permission.MANAGE)
     if access.secret.owner_id != user_id:
         raise AppError.forbidden("Only the owner can delete a secret")
     access.secret.deleted_at = utcnow()
+    key = db.get(FolderItemKey, secret_id)
+    if key:
+        db.delete(key)
+        # Restoring an item never silently restores folder sharing.
+        access.folder_id = None
     # Recovery restores the owner's item, never its old sharing permissions.
     db.execute(
         delete(SecretAccess).where(SecretAccess.secret_id == secret_id, SecretAccess.user_id != user_id)
@@ -194,7 +229,14 @@ def list_history(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> list[
     return list(db.scalars(query))
 
 
-def move_secrets(db: Session, user_id: uuid.UUID, ids: list[uuid.UUID], folder_id: uuid.UUID | None):
+def move_secrets(
+    db: Session,
+    user_id: uuid.UUID,
+    ids: list[uuid.UUID],
+    folder_id: uuid.UUID | None,
+    folder_wrapped_keys=None,
+):
+    lock_folders(db, user_id)
     if folder_id:
         get_owned_folder(db, user_id, folder_id)
     ids = list(dict.fromkeys(ids))
@@ -212,6 +254,8 @@ def move_secrets(db: Session, user_id: uuid.UUID, ids: list[uuid.UUID], folder_i
         )
     )
     if eligible:
+        for secret_id in eligible:
+            set_item_folder(db, user_id, secret_id, folder_id, (folder_wrapped_keys or {}).get(secret_id))
         db.execute(
             update(SecretAccess)
             .where(SecretAccess.user_id == user_id, SecretAccess.secret_id.in_(eligible))
@@ -233,7 +277,13 @@ def owned_trash(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> Secret
 
 
 def restore_secret(db: Session, user_id: uuid.UUID, secret_id: uuid.UUID) -> None:
+    lock_folders(db, user_id)
     owned_trash(db, user_id, secret_id).deleted_at = None
+    access = db.get(SecretAccess, (secret_id, user_id))
+    if access and access.folder_id:
+        folder = get_owned_folder(db, user_id, access.folder_id)
+        if folder.wrapped_key:
+            access.folder_id = None
     db.flush()
 
 

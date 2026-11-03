@@ -8,6 +8,7 @@ from app.db.models.enquiry_model import Enquiry
 from app.db.models.expiry_notification_model import ExpiryNotification
 from app.db.models.external_share_model import ExternalShare
 from app.db.models.folder_model import Folder
+from app.db.models.folder_share_model import FolderItemKey, FolderShare
 from app.db.models.organization_domain_model import OrganizationDomain
 from app.db.models.organization_invitation_model import OrganizationInvitation
 from app.db.models.organization_member_model import OrganizationMember
@@ -28,6 +29,8 @@ __all__ = [
     "UserSession",
     "TrustedDevice",
     "Folder",
+    "FolderShare",
+    "FolderItemKey",
     "Secret",
     "SecretAccess",
     "ExternalShare",

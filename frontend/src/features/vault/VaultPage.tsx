@@ -87,7 +87,7 @@ function matchesFilter(item: DecryptedItem, filter: Filter) {
     case "type":
       return item.type === filter.type;
     case "folder":
-      return item.folderId === filter.id;
+      return item.folderId === filter.id || !!item.sharedFolderIds?.includes(filter.id);
   }
 }
 
@@ -186,6 +186,14 @@ export function VaultPage() {
     const ids = checkedItems.map(item => item.id);
     setBulkBusy(true);
     try {
+      const destinationFolder = folders.data?.find(folder => folder.id === folderId);
+      const leavesShared = checkedItems.some(item => item.isOwner && item.folderId !== folderId &&
+        !!folders.data?.find(folder => folder.id === item.folderId)?.memberCount);
+      if ((destinationFolder?.memberCount || leavesShared) && !await confirmAction({
+        title: 'Move items and change access?',
+        description: `${destinationFolder?.memberCount ? 'Members of the destination folder will gain access. ' : ''}${leavesShared ? 'Access inherited from the previous folder will end. ' : ''}Separate item shares remain.`,
+        confirmLabel: 'Move items',
+      })) return;
       const result = await moveSecrets.mutateAsync({ ids, folderId });
       setCheckedIds(new Set(result.failed));
       const destination = folderId ? folders.data?.find(folder => folder.id === folderId)?.name ?? 'folder' : 'No folder';
@@ -336,7 +344,7 @@ export function VaultPage() {
     onSelect: (id: string) => { setFilter({ kind: 'folder', id }); setCategory('ALL'); setSelectedId(null); },
     onDeleted: (id: string) => { if (filter.kind === 'folder' && filter.id === id) setFilter({ kind: 'all' }); },
     selectedId: filter.kind === 'folder' ? filter.id : undefined,
-    counts: Object.fromEntries((folders.data ?? []).map(folder => [folder.id, all.filter(item => item.folderId === folder.id).length])),
+    counts: Object.fromEntries((folders.data ?? []).map(folder => [folder.id, all.filter(item => item.folderId === folder.id || item.sharedFolderIds?.includes(folder.id)).length])),
   };
 
   return (
@@ -481,7 +489,7 @@ export function VaultPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">No folder</SelectItem>
-              {folders.data?.map(folder => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}
+              {folders.data?.filter(folder => folder.isOwner !== false).map(folder => <SelectItem key={folder.id} value={folder.id}>{folder.name}{folder.memberCount ? ' (shared)' : ''}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-7" disabled={bulkBusy} onClick={() => setCheckedIds(new Set())}>Clear selection</Button>

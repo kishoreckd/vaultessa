@@ -24,7 +24,9 @@ export type VaultItem = {
   owner: { id: string; name: string; email: string };
   isOwner: boolean;
   wrappedKey: string;
-  keyWrap: 'VAULT' | 'RSA';
+  keyWrap: 'VAULT' | 'RSA' | 'FOLDER';
+  inheritedFolderId: string | null;
+  sharedFolderIds: string[];
   permission: Permission;
   folderId: string | null;
   favorite: boolean;
@@ -43,6 +45,7 @@ export type HistoryEntry = {
 };
 
 export type SecretsCreateRequest = {
+  folderWrappedKey?: string;
   type: SecretType;
   expiresAt?: string | null;
   encryptedData: string;
@@ -58,6 +61,7 @@ export type SecretsUpdateRequest = {
 };
 
 export type SecretsUpdateAccessRequest = {
+  folderWrappedKey?: string;
   folderId?: string | null;
   favorite?: boolean;
   wrappedKey?: string;
