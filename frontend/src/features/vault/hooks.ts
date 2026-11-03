@@ -6,11 +6,20 @@ import { secretsApi } from '@/api/vault/api';
 import { sharingApi } from '@/api/sharing/api';
 import { type Permission } from '@/api/sharing/types';
 import { type SecretType } from '@/api/vault/types';
-import { decryptJson, decryptString, encryptString, encryptBytes, importAesKey, rsaUnwrap, folderNameFingerprint, normalizeFolderName } from '../../lib/crypto';
+import {
+  decryptJson,
+  decryptString,
+  encryptString,
+  encryptBytes,
+  importAesKey,
+  rsaUnwrap,
+  folderNameFingerprint,
+  normalizeFolderName,
+} from '../../lib/crypto';
 import { destinationKey, ownerFolderKey } from './folderCrypto';
 import { requireKeys } from '../../stores/session';
 import {
-  decryptItem,
+  decryptItems,
   encryptExisting,
   encryptNewSecret,
   rewrapForVault,
@@ -30,7 +39,7 @@ export const vaultKeys = {
 export function useVaultItems() {
   return useQuery({
     queryKey: vaultKeys.items,
-    queryFn: async () => Promise.all((await secretsApi.list()).map(decryptItem)),
+    queryFn: async () => decryptItems(await secretsApi.list()),
   });
 }
 
@@ -40,7 +49,6 @@ export function useFolders() {
     queryFn: async (): Promise<DecryptedFolder[]> => {
       const folders = await foldersApi.list();
       return readFolders(folders);
-
     },
   });
 }
@@ -65,7 +73,9 @@ export function useSaveSecret() {
           folderId,
           expiresAt,
           ...encrypted,
-          folderWrappedKey: key ? await withSecretKey({ ...encrypted, keyWrap: 'VAULT' }, (_key, raw) => encryptBytes(key, raw)) : undefined,
+          folderWrappedKey: key
+            ? await withSecretKey({ ...encrypted, keyWrap: 'VAULT' }, (_key, raw) => encryptBytes(key, raw))
+            : undefined,
         });
       }
       let item = existing as DecryptedItem | Awaited<ReturnType<typeof secretsApi.update>>;
@@ -82,8 +92,12 @@ export function useSaveSecret() {
       }
       if (folderId !== existing.folderId) {
         const key = await destinationKey(folderId);
-        item = await secretsApi.updateAccess(existing.id, { folderId,
-          folderWrappedKey: key ? await withSecretKey(existing, (_key, raw) => encryptBytes(key, raw)) : undefined });
+        item = await secretsApi.updateAccess(existing.id, {
+          folderId,
+          folderWrappedKey: key
+            ? await withSecretKey(existing, (_key, raw) => encryptBytes(key, raw))
+            : undefined,
+        });
       }
       return item;
     },
@@ -103,10 +117,11 @@ export function useDeleteSecret() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => secretsApi.remove(id),
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: vaultKeys.items }),
-      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
-    ]),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: vaultKeys.items }),
+        qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+      ]),
   });
 }
 
@@ -118,15 +133,20 @@ export function useDeleteSecrets() {
       const deleted: string[] = [];
       const failed: string[] = [];
       for (const id of ids) {
-        try { await secretsApi.remove(id); deleted.push(id); }
-        catch { failed.push(id); }
+        try {
+          await secretsApi.remove(id);
+          deleted.push(id);
+        } catch {
+          failed.push(id);
+        }
       }
       return { deleted, failed };
     },
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: vaultKeys.items }),
-      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
-    ]),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: vaultKeys.items }),
+        qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+      ]),
   });
 }
 
@@ -141,7 +161,8 @@ export function useMoveSecrets() {
       if (key) {
         const selected = new Set(ids);
         for (const item of await secretsApi.list()) {
-          if (selected.has(item.id) && item.isOwner) folderWrappedKeys[item.id] = await withSecretKey(item, (_key, raw) => encryptBytes(key, raw));
+          if (selected.has(item.id) && item.isOwner)
+            folderWrappedKeys[item.id] = await withSecretKey(item, (_key, raw) => encryptBytes(key, raw));
         }
       }
       return key ? secretsApi.move(ids, folderId, folderWrappedKeys) : secretsApi.move(ids, folderId);
@@ -171,10 +192,18 @@ export function useCreateFolder() {
       const { vaultKey, folderNameKey } = requireKeys();
       if (!folderNameKey) throw new Error('Lock and unlock your vault to enable folder protection');
       const existing = await readFolders(await foldersApi.list());
-      if (existing.some(folder => normalizeFolderName(folder.name) === normalizeFolderName(trimmed))) {
+      if (
+        existing.some(
+          (folder) =>
+            folder.isOwner !== false && normalizeFolderName(folder.name) === normalizeFolderName(trimmed),
+        )
+      ) {
         throw new Error('A folder with this name already exists');
       }
-      return foldersApi.create(await encryptString(vaultKey, trimmed), await folderNameFingerprint(folderNameKey, trimmed));
+      return foldersApi.create(
+        await encryptString(vaultKey, trimmed),
+        await folderNameFingerprint(folderNameKey, trimmed),
+      );
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not create folder'),
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.folders }),
@@ -185,10 +214,11 @@ export function useDeleteFolder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => foldersApi.remove(id),
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: vaultKeys.folders }),
-      qc.invalidateQueries({ queryKey: vaultKeys.items }),
-    ]),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: vaultKeys.folders }),
+        qc.invalidateQueries({ queryKey: vaultKeys.items }),
+      ]),
   });
 }
 
@@ -271,34 +301,59 @@ export function useShareMutations(item: DecryptedItem) {
   };
 }
 
-
 async function readFolders(folders: Awaited<ReturnType<typeof foldersApi.list>>): Promise<DecryptedFolder[]> {
   const { vaultKey, folderNameKey } = requireKeys();
-  const readable = await Promise.all(folders.map(async folder => {
-    try {
-      let key = vaultKey;
-      if (folder.isOwner === false) {
-        const raw = await rsaUnwrap(folder.wrappedKey!, requireKeys().privateKey);
-        try { key = await importAesKey(raw); } finally { raw.fill(0); }
+  const readable = await Promise.all(
+    folders.map(async (folder) => {
+      const details = {
+        id: folder.id,
+        isOwner: folder.isOwner !== false,
+        memberCount: folder.memberCount ?? 0,
+        sharingEnabled: !!folder.wrappedKey,
+      };
+      try {
+        let key = vaultKey;
+        if (folder.isOwner === false) {
+          const raw = await rsaUnwrap(folder.wrappedKey!, requireKeys().privateKey);
+          try {
+            key = await importAesKey(raw);
+          } finally {
+            raw.fill(0);
+          }
+        }
+        return { ...details, name: await decryptString(key, folder.encryptedName), readable: true };
+      } catch {
+        return { ...details, name: 'Unreadable folder', readable: false };
       }
-      return { id: folder.id, name: await decryptString(key, folder.encryptedName), readable: true };
-    }
-    catch { return { id: folder.id, name: 'Unreadable folder', readable: false }; }
-  }));
+    }),
+  );
   if (folderNameKey) {
-    const missing = folders.filter(folder => folder.isOwner !== false && !folder.nameFingerprint);
-    const entries = await Promise.all(missing.flatMap(folder => {
-      const value = readable.find(item => item.id === folder.id);
-      return value?.readable ? [folderNameFingerprint(folderNameKey, value.name).then(nameFingerprint => ({ id: folder.id, nameFingerprint }))] : [];
-    }));
+    const readableById = new Map(readable.map((folder) => [folder.id, folder]));
+    const missing = folders.filter((folder) => folder.isOwner !== false && !folder.nameFingerprint);
+    const entries = await Promise.all(
+      missing.flatMap((folder) => {
+        const value = readableById.get(folder.id);
+        return value?.readable
+          ? [
+              folderNameFingerprint(folderNameKey, value.name).then((nameFingerprint) => ({
+                id: folder.id,
+                nameFingerprint,
+              })),
+            ]
+          : [];
+      }),
+    );
     for (let offset = 0; offset < entries.length; offset += 1000) {
       await foldersApi.registerFingerprints(entries.slice(offset, offset + 1000));
     }
   }
-  return readable.map(({ id, name }) => {
-    const folder = folders.find(f => f.id === id)!;
-    return { id, name, isOwner: folder.isOwner !== false, memberCount: folder.memberCount ?? 0, sharingEnabled: !!folder.wrappedKey };
-  });
+  return readable.map(({ id, name, isOwner, memberCount, sharingEnabled }) => ({
+    id,
+    name,
+    isOwner,
+    memberCount,
+    sharingEnabled,
+  }));
 }
 
 export function useRenameFolder() {
@@ -310,34 +365,46 @@ export function useRenameFolder() {
       if (!trimmed) throw new Error('Enter a folder name');
       const { vaultKey, folderNameKey } = requireKeys();
       if (!folderNameKey) throw new Error('Lock and unlock your vault to enable folder protection');
-      const existing = await readFolders(await foldersApi.list());
-      if (existing.some(folder => folder.id !== id && normalizeFolderName(folder.name) === normalizeFolderName(trimmed))) {
+      const rawFolders = await foldersApi.list();
+      const existing = await readFolders(rawFolders);
+      if (
+        existing.some(
+          (folder) =>
+            folder.isOwner !== false &&
+            folder.id !== id &&
+            normalizeFolderName(folder.name) === normalizeFolderName(trimmed),
+        )
+      ) {
         throw new Error('A folder with this name already exists');
       }
-      const folder = (await foldersApi.list()).find(f => f.id === id);
-      const sharedName = folder?.wrappedKey ? await encryptString(await ownerFolderKey(folder), trimmed) : undefined;
+      const folder = rawFolders.find((f) => f.id === id);
+      const sharedName = folder?.wrappedKey
+        ? await encryptString(await ownerFolderKey(folder), trimmed)
+        : undefined;
       const encryptedName = await encryptString(vaultKey, trimmed);
       const fingerprint = await folderNameFingerprint(folderNameKey, trimmed);
-      return sharedName ? foldersApi.rename(id, encryptedName, fingerprint, sharedName) : foldersApi.rename(id, encryptedName, fingerprint);
+      return sharedName
+        ? foldersApi.rename(id, encryptedName, fingerprint, sharedName)
+        : foldersApi.rename(id, encryptedName, fingerprint);
     },
-    onError: error => toast.error(error instanceof Error ? error.message : 'Could not rename folder'),
+    onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not rename folder'),
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.folders }),
   });
 }
 
 export function useTrashItems() {
-  return useQuery({ queryKey: vaultKeys.trash,
-    queryFn: async () => Promise.all((await secretsApi.trash()).map(decryptItem)),
-  });
+  return useQuery({ queryKey: vaultKeys.trash, queryFn: async () => decryptItems(await secretsApi.trash()) });
 }
 
 export function useTrashAction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, permanent }: { id: string; permanent: boolean }) => permanent ? secretsApi.purge(id) : secretsApi.restore(id),
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: vaultKeys.items }),
-      qc.invalidateQueries({ queryKey: vaultKeys.trash }),
-    ]),
+    mutationFn: ({ id, permanent }: { id: string; permanent: boolean }) =>
+      permanent ? secretsApi.purge(id) : secretsApi.restore(id),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: vaultKeys.items }),
+        qc.invalidateQueries({ queryKey: vaultKeys.trash }),
+      ]),
   });
 }

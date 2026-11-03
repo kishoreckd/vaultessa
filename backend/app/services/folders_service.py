@@ -41,6 +41,7 @@ def rename_folder(
 
 def delete_folder(db: Session, user_id: uuid.UUID, folder_id: uuid.UUID) -> None:
     """Secrets in the folder are kept; their access rows fall back to "no folder" (ON DELETE SET NULL)."""
+    lock_folders(db, user_id)
     db.delete(get_owned_folder(db, user_id, folder_id))
     db.flush()
 

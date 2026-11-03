@@ -19,7 +19,12 @@ from app.schemas.secrets import (
     UserBrief,
     VaultItem,
 )
-from app.services.folder_sharing_service import inherited_accesses, set_item_folder
+from app.services.folder_sharing_service import (
+    InheritedAccess,
+    inherited_accesses,
+    set_item_folder,
+    set_owned_items_folder,
+)
 from app.services.folders_service import get_owned_folder, lock_folders
 
 
@@ -29,7 +34,7 @@ def has_permission(actual: Permission, required: Permission) -> bool:
 
 def require_access(
     db: Session, user_id: uuid.UUID, secret_id: uuid.UUID, required: Permission
-) -> SecretAccess:
+) -> SecretAccess | InheritedAccess:
     """Loads the caller's access row and enforces a minimum permission.
 
     No access at all → 404 (don't reveal the secret exists); insufficient permission → 403.
@@ -66,7 +71,7 @@ def _shared_with_counts(db: Session, secret_ids: list[uuid.UUID]) -> dict[uuid.U
     return {secret_id: count - 1 for secret_id, count in rows}
 
 
-def to_vault_item(access: SecretAccess, shared_with: int | None = None) -> VaultItem:
+def to_vault_item(access: SecretAccess | InheritedAccess, shared_with: int | None = None) -> VaultItem:
     secret = access.secret
     if shared_with is None:
         db = object_session(secret)
@@ -237,8 +242,7 @@ def move_secrets(
     folder_wrapped_keys=None,
 ):
     lock_folders(db, user_id)
-    if folder_id:
-        get_owned_folder(db, user_id, folder_id)
+    folder = get_owned_folder(db, user_id, folder_id) if folder_id else None
     ids = list(dict.fromkeys(ids))
     eligible = list(
         db.scalars(
@@ -254,8 +258,7 @@ def move_secrets(
         )
     )
     if eligible:
-        for secret_id in eligible:
-            set_item_folder(db, user_id, secret_id, folder_id, (folder_wrapped_keys or {}).get(secret_id))
+        set_owned_items_folder(db, folder, eligible, folder_wrapped_keys or {})
         db.execute(
             update(SecretAccess)
             .where(SecretAccess.user_id == user_id, SecretAccess.secret_id.in_(eligible))

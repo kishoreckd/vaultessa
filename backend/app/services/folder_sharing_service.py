@@ -2,9 +2,11 @@
 
 import json
 import uuid
-from types import SimpleNamespace
+from dataclasses import dataclass, field
+from typing import Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.constants.vault import Permission
@@ -18,10 +20,42 @@ from app.schemas.folders import FolderMember, FolderOut
 from app.services.folders_service import get_owned_folder, lock_folders
 
 
+@dataclass
+class InheritedAccess:
+    """Nonpersistent projection of folder access; never added to the ORM session."""
+
+    secret_id: uuid.UUID
+    user_id: uuid.UUID
+    secret: Secret
+    wrapped_key: str
+    permission: Permission
+    folder_id: uuid.UUID
+    inherited_folder_id: uuid.UUID
+    key_wrap: Literal["FOLDER"] = "FOLDER"
+    favorite: bool = False
+    organization_id: uuid.UUID | None = None
+    shared_folder_ids: list[uuid.UUID] = field(default_factory=list)
+
+
 def visible_folders(db: Session, user_id: uuid.UUID):
     owned = list(db.scalars(select(Folder).where(Folder.user_id == user_id).order_by(Folder.created_at)))
     counts = dict(
-        db.execute(select(FolderShare.folder_id, func.count()).group_by(FolderShare.folder_id)).all()
+        db.execute(
+            select(FolderShare.folder_id, func.count())
+            .where(
+                FolderShare.folder_id.in_(
+                    select(Folder.id).where(
+                        or_(
+                            Folder.user_id == user_id,
+                            Folder.id.in_(
+                                select(FolderShare.folder_id).where(FolderShare.user_id == user_id)
+                            ),
+                        )
+                    )
+                )
+            )
+            .group_by(FolderShare.folder_id)
+        ).all()
     )
     result = [
         FolderOut.model_validate(f).model_copy(update={"member_count": counts.get(f.id, 0)}) for f in owned
@@ -153,7 +187,7 @@ def inherited_accesses(db: Session, user_id: uuid.UUID, secret_id=None):
     if secret_id is not None:
         query = query.where(Secret.id == secret_id)
     return [
-        SimpleNamespace(
+        InheritedAccess(
             secret_id=s.id,
             user_id=user_id,
             secret=s,
@@ -167,3 +201,31 @@ def inherited_accesses(db: Session, user_id: uuid.UUID, secret_id=None):
         )
         for key, membership, s in db.execute(query)
     ]
+
+
+def set_owned_items_folder(db: Session, folder: Folder | None, secret_ids: list[uuid.UUID], wrapped_keys):
+    """Batch variant for IDs already locked and verified as owned by the caller.
+
+    Validate the complete request before writing anything. Keep query count constant
+    for bulk moves; do not fetch and update each secret/key separately.
+    """
+    if folder and folder.wrapped_key:
+        if any(not wrapped_keys.get(secret_id) for secret_id in secret_ids):
+            raise AppError.conflict("Reload your vault to prepare these items for folder sharing")
+        statement = insert(FolderItemKey).values(
+            [
+                {"secret_id": secret_id, "folder_id": folder.id, "wrapped_key": wrapped_keys[secret_id]}
+                for secret_id in secret_ids
+            ]
+        )
+        db.execute(
+            statement.on_conflict_do_update(
+                index_elements=[FolderItemKey.secret_id],
+                set_={
+                    "folder_id": statement.excluded.folder_id,
+                    "wrapped_key": statement.excluded.wrapped_key,
+                },
+            )
+        )
+    else:
+        db.execute(delete(FolderItemKey).where(FolderItemKey.secret_id.in_(secret_ids)))

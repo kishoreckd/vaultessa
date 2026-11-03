@@ -81,3 +81,10 @@ it('blocks renaming into another folder name', async () => {
   await expect(mocks.options.mutationFn({ id: 'existing', name: 'social' })).rejects.toThrow('already exists');
   expect(mocks.rename).not.toHaveBeenCalled();
 });
+
+it('allows a private folder to use the same name as an incoming shared folder', async () => {
+  mocks.list.mockResolvedValue([{ id: 'shared', encryptedName: 'ciphertext', wrappedKey: null, isOwner: false }]);
+  // An unreadable incoming folder also must not reserve a name in the personal vault.
+  await mocks.options.mutationFn('Unreadable folder');
+  expect(mocks.create).toHaveBeenCalled();
+});

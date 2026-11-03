@@ -12,23 +12,43 @@ import {
 import { type VaultItem } from '@/api/vault/types';
 import { requireKeys } from '../../stores/session';
 import type { DecryptedItem, SecretPayload } from './vaultTypes';
+import { mapConcurrent } from '@/lib/async';
 
 type WrappedKeyRef = Pick<VaultItem, 'wrappedKey' | 'keyWrap'>;
+type FolderKeyCache = Map<string, Promise<CryptoKey>>;
 
-async function unwrapSecretKeyBytes(item: WrappedKeyRef): Promise<Bytes> {
+async function unwrapFolderKey(wrappedKey: string, privateKey: CryptoKey): Promise<CryptoKey> {
+  const raw = await rsaUnwrap(wrappedKey, privateKey);
+  try {
+    return await importAesKey(raw);
+  } finally {
+    raw.fill(0);
+  }
+}
+
+async function unwrapSecretKeyBytes(item: WrappedKeyRef, folderKeys?: FolderKeyCache): Promise<Bytes> {
   const { vaultKey, privateKey } = requireKeys();
   if (item.keyWrap === 'FOLDER') {
     const envelope = JSON.parse(item.wrappedKey) as { folderKey: string; itemKey: string };
-    const raw = await rsaUnwrap(envelope.folderKey, privateKey);
-    try { return await decryptBytes(await importAesKey(raw), envelope.itemKey); }
-    finally { raw.fill(0); }
+    let key = folderKeys?.get(envelope.folderKey);
+    if (!key) {
+      key = unwrapFolderKey(envelope.folderKey, privateKey);
+      folderKeys?.set(envelope.folderKey, key);
+    }
+    return decryptBytes(await key, envelope.itemKey);
   }
-  return item.keyWrap === 'VAULT' ? decryptBytes(vaultKey, item.wrappedKey) : rsaUnwrap(item.wrappedKey, privateKey);
+  return item.keyWrap === 'VAULT'
+    ? decryptBytes(vaultKey, item.wrappedKey)
+    : rsaUnwrap(item.wrappedKey, privateKey);
 }
 
 /** Runs fn with the item's secret key; raw key bytes are zeroed afterwards. */
-export async function withSecretKey<T>(item: WrappedKeyRef, fn: (key: CryptoKey, raw: Bytes) => Promise<T>) {
-  const raw = await unwrapSecretKeyBytes(item);
+export async function withSecretKey<T>(
+  item: WrappedKeyRef,
+  fn: (key: CryptoKey, raw: Bytes) => Promise<T>,
+  folderKeys?: FolderKeyCache,
+) {
+  const raw = await unwrapSecretKeyBytes(item, folderKeys);
   try {
     return await fn(await importAesKey(raw), raw);
   } finally {
@@ -36,13 +56,23 @@ export async function withSecretKey<T>(item: WrappedKeyRef, fn: (key: CryptoKey,
   }
 }
 
-export async function decryptItem(item: VaultItem): Promise<DecryptedItem> {
+export async function decryptItem(item: VaultItem, folderKeys?: FolderKeyCache): Promise<DecryptedItem> {
   try {
-    const data = await withSecretKey(item, (key) => decryptJson<SecretPayload>(key, item.encryptedData));
+    const data = await withSecretKey(
+      item,
+      (key) => decryptJson<SecretPayload>(key, item.encryptedData),
+      folderKeys,
+    );
     return { ...item, data, decryptFailed: false };
   } catch {
     return { ...item, data: { name: 'Unable to decrypt' }, decryptFailed: true };
   }
+}
+
+/** Reuse keys only within one load; no global or persisted key cache. */
+export function decryptItems(items: VaultItem[]): Promise<DecryptedItem[]> {
+  const folderKeys: FolderKeyCache = new Map();
+  return mapConcurrent(items, (item) => decryptItem(item, folderKeys));
 }
 
 /** New secret: fresh random key encrypts the payload, and is wrapped with the vault key for the owner. */

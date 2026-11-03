@@ -12,6 +12,7 @@ const limits = [
   { label: 'Public page artwork', pattern: /^(features|security|how-it-works)-.*\.webp$/, max: 120 * 1024, gzip: false },
   { label: 'Login JavaScript (gzip)', pattern: /^LoginPage-.*\.js$/, max: 20 * 1024, gzip: true },
   { label: 'Registration JavaScript (gzip)', pattern: /^RegisterPage-.*\.js$/, max: 20 * 1024, gzip: true },
+  { label: 'Vault page JavaScript (gzip)', pattern: /^VaultPage-.*\.js$/, max: 30 * 1024, gzip: true },
   { label: 'Shared CSS (gzip)', pattern: /^index-.*\.css$/, max: 25 * 1024, gzip: true },
   { label: 'Hero artwork', pattern: /^vaultessa-hero-.*\.(png|webp|avif)$/, max: 120 * 1024, gzip: false },
 ];

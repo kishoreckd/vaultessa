@@ -51,7 +51,11 @@ def test_other_users_get_404_not_403(api):
 
 def test_folders_are_private_and_deleting_keeps_secrets(api):
     alice, mallory = register(api, "alice"), register(api, "mallory")
-    folder = response_data(api.post("/api/folders", json={"encryptedName": ENC, "nameFingerprint": "a" * 64}, headers=alice.headers))
+    folder = response_data(
+        api.post(
+            "/api/folders", json={"encryptedName": ENC, "nameFingerprint": "a" * 64}, headers=alice.headers
+        )
+    )
     item = create_secret(api, alice, folderId=folder["id"])
     assert item["folderId"] == folder["id"]
 
@@ -71,7 +75,11 @@ def test_folders_are_private_and_deleting_keeps_secrets(api):
 
 def test_access_patch_only_changes_given_fields(api):
     alice = register(api, "alice")
-    folder = response_data(api.post("/api/folders", json={"encryptedName": ENC, "nameFingerprint": "a" * 64}, headers=alice.headers))
+    folder = response_data(
+        api.post(
+            "/api/folders", json={"encryptedName": ENC, "nameFingerprint": "a" * 64}, headers=alice.headers
+        )
+    )
     item = create_secret(api, alice, folderId=folder["id"])
     fav = response_data(
         api.patch(f"/api/secrets/{item['id']}/access", json={"favorite": True}, headers=alice.headers)

@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Request, Response, status
 
 from app.core.deps import Auth, DbSession
+from app.core.errors import AppError
 from app.schemas.folders import (
     EnableFolderSharing,
     FolderFingerprintRequest,
@@ -51,8 +52,6 @@ def rename_folder(folder_id: uuid.UUID, body: FolderRequest, request: Request, a
     folder = service.rename_folder(db, auth.user_id, folder_id, body.encrypted_name, body.name_fingerprint)
     if folder.wrapped_key:
         if not body.shared_name:
-            from app.core.errors import AppError
-
             raise AppError.conflict("Reload to rename this shared folder")
         folder.shared_name = body.shared_name
     record(

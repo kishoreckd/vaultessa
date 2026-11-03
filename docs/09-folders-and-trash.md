@@ -2,6 +2,8 @@
 
 ## Shared folders
 
+Verification results, local performance measurements, open dependency findings and review scores are recorded in [the folder-sharing review](verification/folder-sharing-review.md).
+
 Owners can share a folder with registered Vaultessa users using View or Edit access. The folder and its current and future items appear in the recipient's folder list, marked “Shared with you”. Owners manage membership, rename folders, and add or move items; editors can update existing items. Public folder links, delegated management, nested folders, and machine-token access through folder membership are not included.
 
 The browser creates a random AES folder key when sharing is first enabled. It encrypts a separate shared folder name and wraps every current item key under this folder key. The owner stores the folder key encrypted under their vault key; each member receives an RSA-OAEP encrypted copy. New items and moves into an enabled folder must include their client-generated encrypted item key. Enabling sharing validates the exact current contents atomically; stale clients cannot silently omit items. Folders containing items owned by other people cannot be enabled for sharing.

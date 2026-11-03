@@ -1,5 +1,7 @@
 """Exercise folder inheritance independently of direct grants through the HTTP API."""
 
+from concurrent.futures import ThreadPoolExecutor
+
 from .helpers import ENC, ENC_2, RSA_WRAPPED, create_secret, register, response_data, share
 
 
@@ -205,3 +207,38 @@ def test_restoring_item_trashed_before_sharing_does_not_rejoin_shared_folder(api
     assert api.post(f"/api/secrets/{item['id']}/restore", headers=alice.headers).status_code == 204
     assert items(api, alice)[0]["folderId"] is None
     assert items(api, bob) == []
+
+
+def test_bulk_move_rejects_missing_wrapper_without_partial_changes(api):
+    alice, bob = register(api, "alice"), register(api, "bob")
+    folder, _, _ = setup_folder(api, alice, bob)
+    first, second = create_secret(api, alice), create_secret(api, alice)
+    response = api.post(
+        "/api/secrets/move",
+        headers=alice.headers,
+        json={
+            "ids": [first["id"], second["id"]],
+            "folderId": folder["id"],
+            "folderWrappedKeys": {first["id"]: ENC},
+        },
+    )
+    assert response.status_code == 409
+    assert all(
+        item["folderId"] is None for item in items(api, alice) if item["id"] in {first["id"], second["id"]}
+    )
+    assert len(items(api, bob)) == 1
+
+
+def test_concurrent_folder_grants_are_serialized(api):
+    alice, bob, eve = register(api, "alice"), register(api, "bob"), register(api, "eve")
+    _, _, base = setup_folder(api, alice, bob)
+    payload = {"userId": eve.id, "wrappedKey": RSA_WRAPPED, "permission": "VIEW"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        statuses = list(
+            pool.map(
+                lambda _: api.post(base + "/members", headers=alice.headers, json=payload).status_code,
+                range(2),
+            )
+        )
+    assert sorted(statuses) == [201, 409]
+    assert len(items(api, eve)) == 1
