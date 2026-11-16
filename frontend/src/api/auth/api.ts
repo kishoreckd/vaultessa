@@ -7,6 +7,7 @@ import type {
   MfaChallenge,
   AuthMfaRequest,
   Account,
+  AuthMfaEmailRequest,
 } from './types';
 
 export const authApi = {
@@ -30,6 +31,12 @@ export const authApi = {
     }),
   mfa: (body: AuthMfaRequest) =>
     apiFetch<LoginResponse>('/auth/login/mfa', {
+      method: 'POST',
+      body,
+      auth: false,
+    }),
+  sendMfaEmail: (body: AuthMfaEmailRequest) =>
+    apiFetch<void>('/auth/login/mfa/email', {
       method: 'POST',
       body,
       auth: false,

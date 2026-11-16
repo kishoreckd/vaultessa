@@ -42,9 +42,10 @@ def get_session_auth(
 
 
 def get_auth(auth: AuthContext = Depends(get_session_auth), db: Session = Depends(get_db)) -> AuthContext:
-    user = db.get(User, auth.user_id)
-    if not user or not user.email_verified:
-        raise AppError(403, "EMAIL_NOT_VERIFIED", "Verify your email address before opening your vault")
+    """Email verification is optional ("verify later") for the vault itself. Features that act for the
+    user beyond their own vault (machine tokens, organisations, vault recovery) still require it."""
+    if db.get(User, auth.user_id) is None:
+        raise AppError.unauthorized()
     return auth
 
 

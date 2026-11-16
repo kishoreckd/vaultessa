@@ -2,6 +2,7 @@ import { useState, type SubmitEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { toast } from 'sonner';
 import { Label } from '@/components/ui/label';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { TextField } from '@/components/common/form-field';
@@ -26,7 +27,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<PendingMfa>();
-  const [method, setMethod] = useState<'totp' | 'recovery'>('totp');
+  const [method, setMethod] = useState<'totp' | 'email' | 'recovery'>('totp');
   const [code, setCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(false);
   const { formRef, errors, validate, clear } = useFormErrors<'email' | 'password'>();
@@ -43,7 +44,7 @@ export function LoginPage() {
       setPassword('');
       if (next) {
         setPending(next);
-        setMethod(next.challenge.methods.includes('totp') ? 'totp' : 'recovery');
+        setMethod(next.challenge.methods.includes('totp') ? 'totp' : next.challenge.methods[0] ?? 'recovery');
         return;
       }
       navigate(destination, { replace: true });
@@ -78,6 +79,10 @@ export function LoginPage() {
               setError('Enter the six-digit code from your authenticator app.');
               return;
             }
+            if (method === 'email' && !/^\d{6}$/.test(code)) {
+              setError('Enter the six-digit code sent to your email.');
+              return;
+            }
             setBusy(true);
             setError(null);
             try {
@@ -103,6 +108,9 @@ export function LoginPage() {
             <TabsList>
               {pending.challenge.methods.includes('totp') && (
                 <TabsTrigger value="totp">Authenticator</TabsTrigger>
+              )}
+              {pending.challenge.methods.includes('email') && (
+                <TabsTrigger value="email">Email code</TabsTrigger>
               )}
               <TabsTrigger value="recovery">Recovery code</TabsTrigger>
             </TabsList>
@@ -137,6 +145,37 @@ export function LoginPage() {
                 Use your authenticator app. Codes refresh every 30 seconds and are not sent by email.
                 If a code fails, wait for the next one and check that your device time is set automatically.
               </p>
+            </div>
+          ) : method === 'email' ? (
+            <div className="grid gap-3">
+              <TextField
+                label="Email code"
+                required
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                autoComplete="one-time-code"
+                inputMode="numeric"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await pending.sendEmailCode();
+                    toast.success('A new sign-in code was sent');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Could not send the email code.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Send a new code
+              </Button>
             </div>
           ) : <TextField
             label="Recovery code"

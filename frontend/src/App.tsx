@@ -14,6 +14,7 @@ const MarketingPage = lazy(() => import('@/Landing/MarketingPage').then((m) => (
 const AppLayout = lazy(() => import('@/components/layout/app-layout').then((m) => ({ default: m.AppLayout })));
 const LoginPage = lazy(() => import('@/features/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('@/features/auth/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const SecureAccountPage = lazy(() => import('@/features/auth/SecureAccountPage').then((m) => ({ default: m.SecureAccountPage })));
 const UnlockPage = lazy(() => import('@/features/auth/UnlockPage').then((m) => ({ default: m.UnlockPage })));
 const EmailVerificationPage = lazy(() => import('@/features/auth/RecoveryPages').then((m) => ({ default: m.EmailVerificationPage })));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/RecoveryPages').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -103,14 +104,19 @@ function AuthenticatedRoutes() {
   const status = useSession((s) => s.status);
   const account = useSession((s) => s.account);
   const location = useLocation();
+  const securitySetupPending =
+    !!account && sessionStorage.getItem(`security-setup:${account.id}`) === 'pending';
   const home =
-    account && !account.emailVerified
+    securitySetupPending
       ? '/verify-email'
       : status === 'unlocked'
         ? authDestination(location.state)
         : status === 'locked'
           ? '/unlock'
           : null;
+
+  if (securitySetupPending && location.pathname !== '/secure-account')
+    return <Navigate to={account.emailVerified ? '/secure-account' : '/verify-email'} state={location.state} replace />;
 
   return (
     <Routes>
@@ -125,12 +131,16 @@ function AuthenticatedRoutes() {
       <Route
         path="/unlock"
         element={
-          status === 'locked' && account?.emailVerified ? (
+          status === 'locked' && account ? (
             <UnlockPage />
           ) : (
             <Navigate to={home ?? '/login'} state={location.state} replace />
           )
         }
+      />
+      <Route
+        path="/secure-account"
+        element={account ? <SecureAccountPage /> : <Navigate to="/login" replace />}
       />
       <Route element={<RequireUnlocked />}>
         <Route element={<AppLayout />}>

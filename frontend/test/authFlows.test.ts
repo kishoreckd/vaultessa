@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { authApi } from '../src/api/auth/api';
 import { accountApi } from '../src/api/account/api';
-import { login, unlock, changeMasterPassword } from '../src/features/auth/authFlows';
+import { login, changeMasterPassword } from '../src/features/auth/authFlows';
 import { useSession } from '../src/stores/session';
 import {
   deriveMasterKey,
@@ -20,7 +20,12 @@ afterEach(() => {
   useSession.getState().clear();
 });
 
-it('keeps unverified logins locked without loading vault keys', async () => {
+it('allows an unverified account to unlock after choosing verify later', async () => {
+  const kdfSalt = generateKdfSalt();
+  const master = await deriveMasterKey('fixture-password', kdfSalt, 1000);
+  const raw = generateAesKeyBytes();
+  const vaultKey = await importAesKey(raw);
+  const pair = await generateRsaKeyPair();
   const account = {
     id: 'pending-verification',
     emailVerified: false,
@@ -29,18 +34,19 @@ it('keeps unverified logins locked without loading vault keys', async () => {
     name: 'Pending',
     email: 'pending@example.com',
     kdf: 'PBKDF2_SHA256' as const,
-    kdfSalt: generateKdfSalt(),
+    kdfSalt,
     kdfIterations: 1000,
-    publicKey: 'not-loaded',
-    protectedVaultKey: 'not-loaded',
-    protectedPrivateKey: 'not-loaded',
+    publicKey: pair.publicKey,
+    protectedVaultKey: await encryptBytes(await deriveKek(master), raw),
+    protectedPrivateKey: await encryptBytes(vaultKey, pair.privateKeyPkcs8),
   };
+  raw.fill(0);
+  pair.privateKeyPkcs8.fill(0);
   vi.spyOn(authApi, 'prelogin').mockResolvedValue(account);
   vi.spyOn(authApi, 'login').mockResolvedValue({ account, accessToken: 'restricted-session' });
   await login(account.email, 'fixture-password');
-  expect(useSession.getState().status).toBe('locked');
-  expect(useSession.getState().keys).toBeNull();
-  await expect(unlock('fixture-password')).rejects.toThrow('Verify your email');
+  expect(useSession.getState().status).toBe('unlocked');
+  expect(useSession.getState().keys).not.toBeNull();
 });
 
 it('keeps the vault locked until the MFA challenge succeeds', async () => {

@@ -1,5 +1,7 @@
 export type SecurityOverview = {
   totpEnabled: boolean;
+  emailMfaEnabled: boolean;
+  emailVerified: boolean;
   recoveryCodesLeft: number;
   emailAvailable: boolean;
 };
@@ -44,6 +46,7 @@ export type AccountChangePasswordRequest = {
 export type AccountSetupTotpResponse = { secret: string; otpauthUri: string };
 
 export type AccountEnableTotpResponse = { recoveryCodes: string[] | null };
+export type AccountEnableEmailResponse = { recoveryCodes: string[] | null };
 
 
 export type AccountRecoveryCodesResponse = { recoveryCodes: string[] | null };

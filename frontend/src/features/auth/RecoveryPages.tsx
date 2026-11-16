@@ -8,7 +8,6 @@ import { PasswordInput } from '@/components/common/password-input';
 import { authApi } from '@/api/auth/api';
 import { recoveryApi } from '@/api/recovery/api';
 import { ApiError } from '@/api/client';
-import { authDestination } from '@/lib/auth-destination';
 import { emailError } from '@/lib/validation';
 import { useSession } from '@/stores/session';
 import { useFormErrors } from '@/hooks/useFormErrors';
@@ -111,7 +110,7 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
     if (useSession.getState().account) {
       const fresh = await authApi.me();
       useSession.setState((state) => (state.account?.id === fresh.id ? { account: fresh } : {}));
-      if (fresh.emailVerified) navigate(authDestination(location.state), { replace: true });
+      if (fresh.emailVerified) navigate('/secure-account', { replace: true, state: location.state });
     }
   };
   const sendCode = () => {
@@ -290,18 +289,27 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
               </Button>
             )}
             {account && !recovery ? (
-              <Button
-                variant="link"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await logout();
-                    navigate('/login', { replace: true });
-                  })
-                }
-              >
-                Use a different account
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => navigate('/secure-account', { replace: true, state: location.state })}
+                >
+                  Verify later
+                </Button>
+                <Button
+                  variant="link"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await logout();
+                      navigate('/login', { replace: true });
+                    })
+                  }
+                >
+                  Use a different account
+                </Button>
+              </>
             ) : (
               <Link className="text-center text-sm text-primary underline underline-offset-4" to="/login">
                 Back to sign in

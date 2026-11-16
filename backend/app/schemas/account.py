@@ -11,6 +11,8 @@ Code = Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max
 
 class SecurityOverview(ApiModel):
     totp_enabled: bool
+    email_mfa_enabled: bool
+    email_verified: bool
     recovery_codes_left: int
     email_available: bool
 
@@ -30,7 +32,7 @@ class RecoveryCodes(ApiModel):
 
 
 class DisableMethodRequest(RequestModel):
-    method: Literal["totp"]
+    method: Literal["totp", "email"]
     # re-authentication: proof of the master password (client-derived, as at login)
     auth_hash: Base64Hash
 

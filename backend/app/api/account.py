@@ -45,6 +45,8 @@ def security_overview(auth: Auth, db: DbSession):
     user = get_user(db, auth.user_id)
     return SecurityOverview(
         totp_enabled=user.totp_enabled,
+        email_mfa_enabled=user.email_mfa_enabled,
+        email_verified=user.email_verified,
         recovery_codes_left=len(user.mfa_recovery_hashes or []),
         email_available=email_enabled(),
     )
@@ -67,6 +69,16 @@ def totp_enable(
     record(db, request, AuditAction.MFA_ENABLE, user_id=user.id, details={"method": "totp"})
     db.commit()
     notify.two_step_changed(background, user, "totp", enabled=True)
+    return RecoveryCodes(recovery_codes=codes)
+
+
+@router.post("/mfa/email/enable", response_model=RecoveryCodes, dependencies=[Depends(auth_limit)])
+def email_mfa_enable(request: Request, background: BackgroundTasks, auth: Auth, db: DbSession):
+    user = get_user(db, auth.user_id)
+    codes = service.enable_email_mfa(user)
+    record(db, request, AuditAction.MFA_ENABLE, user_id=user.id, details={"method": "email"})
+    db.commit()
+    notify.two_step_changed(background, user, "email", enabled=True)
     return RecoveryCodes(recovery_codes=codes)
 
 

@@ -14,6 +14,7 @@ from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
     MfaChallenge,
+    MfaEmailCodeRequest,
     PreloginRequest,
     PreloginResponse,
     RegisterRequest,
@@ -135,11 +136,39 @@ def login(
         if trusted_device_service.is_trusted(db, user, trusted):
             return _complete_login(db, request, response, background, user, "trusted_device")
         # No session yet: the client must complete the second step with this short-lived token.
+        methods = service.mfa_methods(user)
+        email_code_sent = False
+        if user.email_mfa_enabled and not user.totp_enabled:
+            # Email is the only second step: send the code now (unless one was sent moments ago).
+            try:
+                code = account_service.issue_email_sign_in_code(user)
+            except AppError:
+                code = None
+            db.commit()
+            if code:
+                notify.sign_in_code(background, user, code)
+                email_code_sent = True
         return MfaChallenge(
             mfa_token=create_mfa_token(user.id, user.auth_hash),
-            methods=service.mfa_methods(user),
+            methods=methods,
+            email_code_sent=email_code_sent,
         )
     return _complete_login(db, request, response, background, user, None)
+
+
+@router.post("/login/mfa/email", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(auth_limit)])
+def send_mfa_email_code(body: MfaEmailCodeRequest, background: BackgroundTasks, db: DbSession):
+    """Emails a sign-in code for a pending two-step sign-in (password already checked)."""
+    try:
+        user = service.get_user(db, decode_mfa_token(body.mfa_token), lock=True)
+        decode_mfa_token(body.mfa_token, user.auth_hash)
+    except (jwt.PyJWTError, ValueError):
+        raise AppError.unauthorized("Your sign-in expired. Enter your master password again.") from None
+    service.ensure_not_locked(user)
+    code = account_service.issue_email_sign_in_code(user)
+    db.commit()
+    notify.sign_in_code(background, user, code)
+    return {"sent": True}
 
 
 @router.post("/login/mfa", response_model=LoginResponse, dependencies=[Depends(auth_limit)])

@@ -44,6 +44,7 @@ class Account(ApiModel):
     public_key: str
     protected_private_key: str
     totp_enabled: bool
+    email_mfa_enabled: bool
     mfa_phone: str | None
     email_verified: bool
 
@@ -53,7 +54,7 @@ class LoginResponse(ApiModel):
     account: Account
 
 
-MfaMethod = Literal["totp", "recovery"]
+MfaMethod = Literal["totp", "email", "recovery"]
 
 
 class MfaChallenge(ApiModel):
@@ -62,6 +63,12 @@ class MfaChallenge(ApiModel):
     mfa_required: Literal[True] = True
     mfa_token: str
     methods: list[MfaMethod]
+    # True when a sign-in code was just emailed (email is the account's only second step).
+    email_code_sent: bool = False
+
+
+class MfaEmailCodeRequest(RequestModel):
+    mfa_token: Annotated[str, StringConstraints(max_length=2048)]
 
 
 class LoginMfaRequest(RequestModel):

@@ -49,6 +49,11 @@ class User(Base):
         String(32)
     )  # legacy factor marker; retained to avoid bypassing existing two-step requirements
     mfa_recovery_hashes: Mapped[list | None] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
+    # Email sign-in codes (second step). Only a keyed digest of the current code is stored.
+    email_mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    mfa_email_code_hash: Mapped[str | None] = mapped_column(String(64))
+    mfa_email_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mfa_email_code_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Email notification opt-outs, e.g. {"sharing": false}. Security alerts can't be disabled.
     notification_prefs: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
@@ -74,4 +79,4 @@ class User(Base):
 
     @property
     def mfa_required(self) -> bool:
-        return self.totp_enabled or self.mfa_phone is not None
+        return self.totp_enabled or self.email_mfa_enabled or self.mfa_phone is not None

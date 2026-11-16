@@ -135,6 +135,16 @@ def verify_email(background: BackgroundTasks, user: User, token: str, code: str 
     )
 
 
+def sign_in_code(background: BackgroundTasks, user: User, code: str) -> None:
+    _queue(
+        background,
+        user,
+        Category.SECURITY,
+        email_templates.sign_in_code_email(user.name, code),
+        ttl=_code_ttl(),
+    )
+
+
 def welcome(background: BackgroundTasks, user: User) -> None:
     _queue(background, user, Category.SECURITY, email_templates.welcome_email(user.name, _app_url("/")))
 
@@ -238,7 +248,7 @@ def account_locked(background: BackgroundTasks, user: User, minutes: int) -> Non
 
 
 def two_step_changed(background: BackgroundTasks, user: User, method: str, enabled: bool) -> None:
-    what = "authenticator app" if method == "totp" else "SMS codes"
+    what = {"totp": "authenticator app", "email": "email codes"}.get(method, "SMS codes")
     _queue(
         background,
         user,

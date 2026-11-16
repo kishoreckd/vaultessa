@@ -90,6 +90,22 @@ def verification_email(name: str, link: str, code: str = "") -> EmailContent:
     )
 
 
+def sign_in_code_email(name: str, code: str) -> EmailContent:
+    return EmailContent(
+        template="verify_email.html",
+        subject="Your Vaultessa sign-in code",
+        heading="Finish signing in",
+        preheader="Enter this code to finish signing in to Vaultessa.",
+        paragraphs=[
+            f"Hi {name}, enter this code to finish signing in.",
+            f"It expires in {get_settings().email_code_ttl_minutes} minutes and works once.",
+            "If you didn't just sign in, change your master password.",
+        ],
+        one_time_code=code,
+        footnote="Vaultessa will never ask you to send your master password or recovery key by email.",
+    )
+
+
 def welcome_email(name: str, app_url: str) -> EmailContent:
     return EmailContent(
         template="welcome.html",

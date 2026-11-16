@@ -61,7 +61,7 @@ export const useSession = create<SessionState>((set) => ({
       unlockExpiresAt: null,
     }),
   unlock: (account, keys, expiresAt = Date.now() + REMEMBER_UNLOCK_MS) => {
-    if (!account.emailVerified || expiresAt <= Date.now()) return;
+    if (expiresAt <= Date.now()) return;
     set({
       status: "unlocked",
       account,

@@ -26,7 +26,7 @@ export function AccountSecurity() {
   const [qr, setQr] = useState('');
   const [code, setCode] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [reauth, setReauth] = useState<'totp' | 'recovery'>();
+  const [reauth, setReauth] = useState<'totp' | 'email' | 'recovery'>();
   const [password, setPassword] = useState('');
   const copy = useClipboard();
   useEffect(() => {
@@ -71,9 +71,7 @@ export function AccountSecurity() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                {data?.totpEnabled
-                  ? 'Authenticator verification is on.'
-                  : 'Require an authenticator code when you sign in.'}
+                Add an authenticator or email code after your master password. The authenticator works without email delivery.
               </p>
               <div className="flex flex-wrap gap-2">
                 {!data?.totpEnabled ? (
@@ -93,7 +91,26 @@ export function AccountSecurity() {
                     Disable authenticator
                   </Button>
                 )}
-                {data?.totpEnabled && (
+                {!data?.emailMfaEnabled ? (
+                  <Button
+                    variant="outline"
+                    disabled={busy || !data?.emailVerified}
+                    title={!data?.emailVerified ? 'Verify your email first' : undefined}
+                    onClick={() =>
+                      action.mutate(async () => {
+                        setCodes((await accountApi.enableEmailMfa()).recoveryCodes);
+                        toast.success('Email verification enabled');
+                      })
+                    }
+                  >
+                    Enable email code
+                  </Button>
+                ) : (
+                  <Button variant="outline" disabled={busy} onClick={() => setReauth('email')}>
+                    Disable email code
+                  </Button>
+                )}
+                {(data?.totpEnabled || data?.emailMfaEnabled) && (
                   <Button variant="outline" disabled={busy} onClick={() => setReauth('recovery')}>
                     Replace recovery codes
                   </Button>

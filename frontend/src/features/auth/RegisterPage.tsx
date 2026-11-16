@@ -81,10 +81,10 @@ export function RegisterPage() {
     setBusy(true);
     try {
       await register({ name, email, password });
-      toast.success('Check your inbox', {
-        description: 'Verify your email address before opening your vault.',
+      toast.success('Account created', {
+        description: 'Verify your email, then secure sign-in with an authenticator or email code.',
       });
-      navigate(destination, { replace: true });
+      navigate('/verify-email', { replace: true, state: { from: destination } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create your account. Please try again.');
     } finally {

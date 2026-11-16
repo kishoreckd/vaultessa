@@ -43,8 +43,7 @@ def test_authenticated_dto_and_bodyless_logout(api):
     assert result.status_code == 200 and body["status"] == "success"
     assert body["data"]["id"] == user.id
     assert "authHash" not in body["data"] and "emailVerificationCodeHash" not in body["data"]
-    blocked = api.get("/api/secrets", headers=user.headers)
-    assert blocked.json()["data"]["code"] == "EMAIL_NOT_VERIFIED"
+    assert api.get("/api/secrets", headers=user.headers).status_code == 200  # verify later
     response = api.post("/api/auth/logout")
     assert response.status_code == 204 and response.content == b""
     assert "Max-Age=0" in response.headers["set-cookie"]

@@ -4,6 +4,7 @@ import type {
   SecurityOverview,
   AccountSetupTotpResponse,
   AccountEnableTotpResponse,
+  AccountEnableEmailResponse,
   AccountRecoveryCodesResponse,
   DeviceSession,
   AccountRevokeOthersResponse,
@@ -22,7 +23,9 @@ export const accountApi = {
       method: 'POST',
       body: { code },
     }),
-  disableMfa: (method: 'totp', authHash: string) =>
+  enableEmailMfa: () =>
+    apiFetch<AccountEnableEmailResponse>('/account/mfa/email/enable', { method: 'POST' }),
+  disableMfa: (method: 'totp' | 'email', authHash: string) =>
     apiFetch<void>('/account/mfa/disable', {
       method: 'POST',
       body: { method, authHash },

@@ -68,13 +68,14 @@ export async function register(input: { name: string; email: string; password: s
   });
   setAccessToken(res.accessToken);
   sessionStorage.setItem(`recovery-setup:${res.account.id}`, 'pending');
-  if (res.account.emailVerified) useSession.getState().unlock(res.account, { vaultKey, privateKey, folderNameKey });
-  else useSession.getState().setLocked(res.account);
+  sessionStorage.setItem(`security-setup:${res.account.id}`, 'pending');
+  useSession.getState().unlock(res.account, { vaultKey, privateKey, folderNameKey });
 }
 
 export type PendingMfa = {
   challenge: MfaChallenge;
-  complete: (method: 'totp' | 'recovery', code: string, rememberDevice?: boolean) => Promise<void>;
+  complete: (method: 'totp' | 'email' | 'recovery', code: string, rememberDevice?: boolean) => Promise<void>;
+  sendEmailCode: () => Promise<void>;
 };
 
 export async function login(emailInput: string, password: string): Promise<PendingMfa | undefined> {
@@ -88,23 +89,19 @@ export async function login(emailInput: string, password: string): Promise<Pendi
       complete: async (method, code, rememberDevice = false) => {
         const result = await authApi.mfa({ mfaToken: res.mfaToken, method, code, rememberDevice });
         setAccessToken(result.accessToken);
-        if (result.account.emailVerified)
-          useSession.getState().unlock(result.account, await unwrapAccountKeys(masterKey, result.account));
-        else useSession.getState().setLocked(result.account);
+        useSession.getState().unlock(result.account, await unwrapAccountKeys(masterKey, result.account));
       },
+      sendEmailCode: () => authApi.sendMfaEmail({ mfaToken: res.mfaToken }),
     };
   }
   setAccessToken(res.accessToken);
-  if (res.account.emailVerified)
-    useSession.getState().unlock(res.account, await unwrapAccountKeys(masterKey, res.account));
-  else useSession.getState().setLocked(res.account);
+  useSession.getState().unlock(res.account, await unwrapAccountKeys(masterKey, res.account));
 }
 
 /** Unlock with an existing session. Throws CryptoError if the master password is wrong. */
 export async function unlock(password: string) {
   const { account } = useSession.getState();
   if (!account) throw new Error('No session');
-  if (!account.emailVerified) throw new Error('Verify your email address before unlocking your vault.');
   const masterKey = await deriveMasterKey(password, account.kdfSalt, account.kdfIterations);
   useSession.getState().unlock(account, await unwrapAccountKeys(masterKey, account));
 }

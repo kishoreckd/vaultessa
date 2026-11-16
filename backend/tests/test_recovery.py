@@ -258,16 +258,15 @@ def test_codes_are_single_use_under_concurrent_requests(api, mail):
 def test_signup_verification_and_welcome_are_single_use(api, mail):
     user = register(api, "alice", verified=False)
     assert response_data(api.get("/api/auth/me", headers=user.headers))["emailVerified"] is False
-    blocked = api.get("/api/secrets", headers=user.headers)
-    assert blocked.status_code == 403
-    assert response_data(blocked)["error"]["code"] == "EMAIL_NOT_VERIFIED"
+    # "Verify later": the vault itself works before the email is verified.
+    assert api.get("/api/secrets", headers=user.headers).status_code == 200
     assert (
         api.post(
             "/api/secrets",
             json={"type": "LOGIN", "encryptedData": ENC, "wrappedKey": ENC},
             headers=user.headers,
         ).status_code
-        == 403
+        == 201
     )
     token = _token(mail, "Verify your Vaultessa email", user.email)
     assert api.post("/api/auth/email/verify", json={"token": token}).status_code == 200
@@ -280,7 +279,7 @@ def test_signup_verification_and_welcome_are_single_use(api, mail):
         assert user_row.email_verification_hash is None
 
 
-def test_unverified_login_remains_restricted_and_can_resend_after_cooldown(api, mail):
+def test_unverified_login_opens_vault_but_not_outward_features(api, mail):
     user = register(api, "alice", verified=False)
     with SessionLocal() as db:
         row = db.get(User, uuid.UUID(user.id))
@@ -292,14 +291,8 @@ def test_unverified_login_remains_restricted_and_can_resend_after_cooldown(api, 
     assert response_data(response)["account"]["emailVerified"] is False
     assert len(mail) == before + 1
     headers = {"Authorization": "Bearer " + response_data(response)["accessToken"]}
-    for path in [
-        "/api/secrets",
-        "/api/folders",
-        "/api/account/security",
-        "/api/tokens",
-        "/api/organizations",
-    ]:
-        assert api.get(path, headers=headers).status_code == 403
+    for path in ["/api/secrets", "/api/folders", "/api/account/security"]:
+        assert api.get(path, headers=headers).status_code == 200
     assert api.get("/api/auth/me", headers=headers).status_code == 200
     response = api.post("/api/auth/email/request", json={"email": user.email})
     assert response.status_code == 202
@@ -342,7 +335,8 @@ def test_recovery_setup_requires_verified_email_and_password(api, mail):
     user = register(api, "alice", verified=False)
     body = {"authHash": user.auth_hash, "recoveryAuth": b64("proof"), "wrappedVaultKey": ENC}
     assert api.put("/api/account/recovery", json=body).status_code == 401
-    assert api.put("/api/account/recovery", json=body, headers=user.headers).status_code == 403
+    unverified = api.put("/api/account/recovery", json=body, headers=user.headers)
+    assert unverified.status_code == 400  # vault recovery still needs a verified email
     token = _token(mail, "Verify your Vaultessa email", user.email)
     api.post("/api/auth/email/verify", json={"token": token})
     assert (

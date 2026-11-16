@@ -1,9 +1,14 @@
+import hashlib
+import hmac
+import secrets
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core import totp
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import hash_auth_key, seal, unseal, verify_auth_key
 from app.db.models.session_model import UserSession
@@ -49,6 +54,21 @@ def verify_second_factor(user: User, method: str, code: str | None) -> bool:
         if counter is None or (user.mfa_last_counter is not None and counter <= user.mfa_last_counter):
             return False  # wrong, or a code that was already used (replay)
         user.mfa_last_counter = counter
+        return True
+
+    if method == "email":
+        now = datetime.now(UTC)
+        if (
+            not user.email_mfa_enabled
+            or not code
+            or not user.mfa_email_code_hash
+            or not user.mfa_email_code_expires_at
+            or user.mfa_email_code_expires_at <= now
+            or not hmac.compare_digest(user.mfa_email_code_hash, _email_code_hash(user, code.strip()))
+        ):
+            return False
+        user.mfa_email_code_hash = None  # each emailed code works once
+        user.mfa_email_code_expires_at = None
         return True
 
     if method == "recovery":
@@ -98,6 +118,40 @@ def enable_totp(user: User, code: str) -> list[str] | None:
     return _ensure_recovery_codes(user)
 
 
+def _email_code_hash(user: User, code: str) -> str:
+    return hmac.new(
+        get_settings().prelogin_secret.encode(),
+        f"email-code:sign-in:{user.id}:{code}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def enable_email_mfa(user: User) -> list[str] | None:
+    if not user.email_verified:
+        raise AppError.bad_request("Verify your email first")
+    if user.email_mfa_enabled:
+        raise AppError.conflict("Email sign-in codes are already on")
+    user.email_mfa_enabled = True
+    return _ensure_recovery_codes(user)
+
+
+def issue_email_sign_in_code(user: User) -> str:
+    """Creates the next emailed sign-in code. Raises 429 inside the resend cooldown."""
+    settings = get_settings()
+    now = datetime.now(UTC)
+    if not user.email_mfa_enabled:
+        raise AppError.bad_request("Email sign-in codes are off for this account")
+    if user.mfa_email_code_sent_at and now - user.mfa_email_code_sent_at < timedelta(
+        seconds=settings.email_resend_cooldown_seconds
+    ):
+        raise AppError(429, "RATE_LIMITED", "Wait a minute before requesting another code")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    user.mfa_email_code_hash = _email_code_hash(user, code)
+    user.mfa_email_code_expires_at = now + timedelta(minutes=settings.email_code_ttl_minutes)
+    user.mfa_email_code_sent_at = now
+    return code
+
+
 def disable_method(user: User, method: str) -> None:
     if method == "totp":
         if not user.totp_enabled:
@@ -105,6 +159,12 @@ def disable_method(user: User, method: str) -> None:
         user.totp_enabled = False
         user.mfa_secret_enc = None
         user.mfa_last_counter = None
+    elif method == "email":
+        if not user.email_mfa_enabled:
+            raise AppError.bad_request("Email sign-in codes aren't on")
+        user.email_mfa_enabled = False
+        user.mfa_email_code_hash = None
+        user.mfa_email_code_expires_at = None
     else:
         raise AppError.bad_request("Unsupported verification method")
     if not user.mfa_required:
