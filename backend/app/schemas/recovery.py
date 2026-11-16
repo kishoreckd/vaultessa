@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints
 
@@ -17,6 +17,11 @@ class TokenRequest(RequestModel):
 
 class EmailCodeRequest(EmailRequest):
     code: Annotated[str, StringConstraints(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")]
+
+
+class RecoveryFactorRequest(EmailRequest):
+    method: Literal["totp", "recovery"]
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=32)]
 
 
 class EnableRecoveryRequest(RequestModel):

@@ -29,6 +29,12 @@ export const recoveryApi = {
       body: { email, code },
       auth: false,
     }),
+  verifyResetFactor: (email: string, method: 'totp' | 'recovery', code: string) =>
+    apiFetch<RecoveryVerifyResetCodeResponse>('/auth/recovery/verify-factor', {
+      method: 'POST',
+      body: { email, method, code },
+      auth: false,
+    }),
   status: () => apiFetch<RecoveryStatusResponse>('/account/recovery'),
   requestVerification: (email: string) =>
     apiFetch<RecoveryRequestVerificationResponse>('/auth/email/request', {

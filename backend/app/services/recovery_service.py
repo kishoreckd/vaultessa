@@ -16,7 +16,7 @@ from app.db.models.session_model import UserSession
 from app.db.models.user_model import User
 from app.schemas.recovery import EnableRecoveryRequest, ResetPasswordRequest
 from app.services import notifications_service as notify
-from app.services.account_service import require_master_password
+from app.services.account_service import require_master_password, verify_second_factor
 
 
 @dataclass(frozen=True)
@@ -221,6 +221,25 @@ def exchange_recovery_code(db: Session, email: str, code: str) -> tuple[str | No
         minutes=get_settings().password_reset_ttl_minutes
     )
     return token, None
+
+
+def exchange_recovery_factor(db: Session, email: str, method: str, code: str) -> str | None:
+    """Exchange a previously enrolled authenticator or backup code for a reset capability."""
+    user = db.scalar(select(User).where(User.email == email).with_for_update())
+    if (
+        user is None
+        or not user.recovery_auth_hash
+        or not user.recovery_wrapped_vault_key
+        or not verify_second_factor(user, method, code)
+    ):
+        return None
+    token = random_token()
+    user.password_reset_hash = sha256_hex(token)
+    user.password_reset_expires_at = datetime.now(UTC) + timedelta(
+        minutes=get_settings().password_reset_ttl_minutes
+    )
+    user.password_reset_attempts = 0
+    return token
 
 
 def complete_reset(db: Session, body: ResetPasswordRequest) -> tuple[User, bool]:

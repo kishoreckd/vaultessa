@@ -15,6 +15,7 @@ from app.schemas.recovery import (
     EmailCodeRequest,
     EmailRequest,
     EnableRecoveryRequest,
+    RecoveryFactorRequest,
     RecoveryInfo,
     RecoveryStatus,
     ResetPasswordRequest,
@@ -96,6 +97,15 @@ def verify_recovery_code(body: EmailCodeRequest, db: DbSession):
         )
     # Exchange the emailed proof for a fresh capability; neither the code nor the old link can be replayed.
     db.commit()
+    return {"token": token}
+
+
+@public_router.post("/recovery/verify-factor")
+def verify_recovery_factor(body: RecoveryFactorRequest, db: DbSession):
+    token = service.exchange_recovery_factor(db, body.email, body.method, body.code)
+    db.commit()
+    if token is None:
+        raise AppError.bad_request("This code is incorrect, unavailable, or already used.")
     return {"token": token}
 
 

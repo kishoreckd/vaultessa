@@ -97,6 +97,24 @@ def _reset_body(token):
     }
 
 
+def test_saved_mfa_recovery_code_can_start_vault_recovery(api, mail):
+    user = _enabled(api, mail)
+    enabled = api.post("/api/account/mfa/email/enable", headers=user.headers)
+    code = response_data(enabled)["recoveryCodes"][0]
+    verified = api.post(
+        "/api/auth/recovery/verify-factor",
+        json={"email": user.email, "method": "recovery", "code": code},
+    )
+    assert verified.status_code == 200, verified.text
+    token = response_data(verified)["token"]
+    assert api.post("/api/auth/recovery/inspect", json={"token": token}).status_code == 200
+    reused = api.post(
+        "/api/auth/recovery/verify-factor",
+        json={"email": user.email, "method": "recovery", "code": code},
+    )
+    assert reused.status_code == 400
+
+
 def _code(messages, email):
     message = next(m for m in reversed(messages) if m["to"] == email and "Code: " in m["text"])
     return re.search(r"Code: ([0-9]{6})", message["text"]).group(1)

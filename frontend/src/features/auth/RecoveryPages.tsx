@@ -38,6 +38,7 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
   const { formRef, errors, validate, clear } = useFormErrors<'email' | 'code'>();
   const [email, setEmail] = useState(recovery ? '' : (account?.email ?? ''));
   const [code, setCode] = useState('');
+  const [recoveryMethod, setRecoveryMethod] = useState<'email' | 'totp' | 'recovery'>('email');
   const [policy, setPolicy] = useState<{ resendAfterSeconds: number; codeTtlMinutes: number } | null>(null);
   const [policyError, setPolicyError] = useState(false);
   const [policyAttempt, setPolicyAttempt] = useState(0);
@@ -120,6 +121,7 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
         ? recoveryApi.requestReset(email.trim())
         : recoveryApi.requestVerification(email.trim()));
       start(result.resendAfterSeconds);
+      if (recovery) setRecoveryMethod('email');
       setSent(true);
       setCode('');
       setMessage(result.message);
@@ -186,13 +188,26 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
                   busy ||
                   !validate({
                     email: emailError(email),
-                    code: /^\d{6}$/.test(code) ? null : 'Enter the six-digit code from your email.',
+                    code:
+                      recovery && recoveryMethod === 'recovery'
+                        ? code.trim().length >= 6
+                          ? null
+                          : 'Enter a saved recovery code.'
+                        : /^\d{6}$/.test(code)
+                          ? null
+                          : 'Enter the six-digit code.',
                   })
                 )
                   return;
                 void run(async () => {
                   if (recovery) {
-                    setResetToken((await recoveryApi.verifyResetCode(email.trim(), code)).token);
+                    setResetToken(
+                      (
+                        await (recoveryMethod === 'email'
+                          ? recoveryApi.verifyResetCode(email.trim(), code)
+                          : recoveryApi.verifyResetFactor(email.trim(), recoveryMethod, code.trim()))
+                      ).token,
+                    );
                     toast.success('Email confirmed', {
                       description: 'You can now set a new master password.',
                     });
@@ -219,16 +234,35 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
                   }}
                 />
               )}
-              {sent && (
+              {sent && recoveryMethod === 'recovery' ? (
+                <TextField
+                  label="Recovery code"
+                  required
+                  value={code}
+                  error={errors.code}
+                  autoComplete="one-time-code"
+                  onChange={(event) => {
+                    setCode(event.target.value);
+                    clear('code');
+                    setError('');
+                  }}
+                />
+              ) : sent ? (
                 <EmailCodeField
                   value={code}
                   error={errors.code}
                   remaining={remaining}
                   disabled={busy}
-                  resendDisabled={busy || !policy || remaining > 0}
+                  resendDisabled={
+                    recoveryMethod !== 'email' || busy || !policy || remaining > 0
+                  }
                   onResend={sendCode}
                   hint={
-                    policy
+                    recoveryMethod === 'totp'
+                      ? 'Enter the current six-digit code from the authenticator you enabled earlier.'
+                      : recoveryMethod === 'recovery'
+                        ? 'Enter one of the single-use recovery codes you saved earlier.'
+                        : policy
                       ? `Code expires after ${policy.codeTtlMinutes} minutes. Check spam if it hasn't arrived.`
                       : 'Check your inbox and spam folder.'
                   }
@@ -238,7 +272,7 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
                     setError('');
                   }}
                 />
-              )}
+              ) : null}
               <Button disabled={busy || (!sent && (!policy || remaining > 0))} type="submit">
                 {busy
                   ? 'Please wait…'
@@ -253,6 +287,44 @@ function EmailCodePage({ recovery = false }: { recovery?: boolean }) {
                         : 'Send verification code'}
               </Button>
             </form>
+            {recovery && !sent && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    const problem = emailError(email);
+                    if (problem) {
+                      validate({ email: problem });
+                      return;
+                    }
+                    setRecoveryMethod('totp');
+                    setSent(true);
+                    setCode('');
+                  }}
+                >
+                  Authenticator
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    const problem = emailError(email);
+                    if (problem) {
+                      validate({ email: problem });
+                      return;
+                    }
+                    setRecoveryMethod('recovery');
+                    setSent(true);
+                    setCode('');
+                  }}
+                >
+                  Recovery code
+                </Button>
+              </div>
+            )}
             {policyError && (
               <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
                 <span>Couldn’t reach the server to load the email code settings.</span>
@@ -357,7 +429,7 @@ function RecoveryForm({ token }: { token: string }) {
             in, create a new vault recovery key in Settings.
           </p>
           <Button asChild>
-            <Link to="/login">Sign in with new password</Link>
+            <Link to="/login" state={{ from: '/vault/settings' }}>Sign in with new password</Link>
           </Button>
         </div>
       ) : !token ? (
