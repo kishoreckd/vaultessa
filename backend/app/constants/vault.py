@@ -17,6 +17,7 @@ class SecretType(enum.StrEnum):
     API_KEY = "API_KEY"
     WIFI = "WIFI"
     SERVER = "SERVER"
+    JSON = "JSON"
 
 
 class Permission(enum.StrEnum):

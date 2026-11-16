@@ -42,7 +42,7 @@ User 1───* AuditLog
 | --- | --- | --- |
 | id | uuid | |
 | ownerId | uuid → User | |
-| type | `SecretType` | LOGIN, SECURE_NOTE, CARD, IDENTITY, BANK_ACCOUNT, SSH_KEY, API_KEY, WIFI, SERVER |
+| type | `SecretType` | LOGIN, SECURE_NOTE, CARD, IDENTITY, BANK_ACCOUNT, SSH_KEY, API_KEY, WIFI, SERVER, JSON |
 | encryptedData | text 🔒 | JSON payload under secretKey |
 | revision | int | optimistic concurrency |
 | createdAt / updatedAt | timestamp | |

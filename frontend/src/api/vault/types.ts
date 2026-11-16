@@ -1,15 +1,16 @@
-import type { Permission } from '../sharing/types';
+import type { Permission } from "../sharing/types";
 
 export const SECRET_TYPES = [
-  'LOGIN',
-  'SECURE_NOTE',
-  'CARD',
-  'IDENTITY',
-  'BANK_ACCOUNT',
-  'SSH_KEY',
-  'API_KEY',
-  'WIFI',
-  'SERVER',
+  "LOGIN",
+  "SECURE_NOTE",
+  "CARD",
+  "IDENTITY",
+  "BANK_ACCOUNT",
+  "SSH_KEY",
+  "API_KEY",
+  "WIFI",
+  "SERVER",
+  "JSON",
 ] as const;
 
 export type SecretType = (typeof SECRET_TYPES)[number];
@@ -24,7 +25,7 @@ export type VaultItem = {
   owner: { id: string; name: string; email: string };
   isOwner: boolean;
   wrappedKey: string;
-  keyWrap: 'VAULT' | 'RSA' | 'FOLDER';
+  keyWrap: "VAULT" | "RSA" | "FOLDER";
   inheritedFolderId: string | null;
   sharedFolderIds: string[];
   permission: Permission;

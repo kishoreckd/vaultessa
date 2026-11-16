@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   Copy,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -62,6 +63,19 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
   const canManage = can(item, 'MANAGE') && !item.decryptFailed;
   const { data } = item;
   const filled = template.fields.filter((f) => getField(data, f.key));
+  const jsonValue = item.type === 'JSON' ? getField(data, 'json') : undefined;
+
+  function downloadJson() {
+    if (!jsonValue) return;
+    const blobUrl = URL.createObjectURL(new Blob([jsonValue], { type: 'application/json' }));
+    const link = document.createElement('a');
+    const filename = data.name.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'vaultessa-secret';
+    link.href = blobUrl;
+    link.download = `${filename}.json`;
+    link.click();
+    URL.revokeObjectURL(blobUrl);
+    toast.success('JSON downloaded');
+  }
 
   async function onDelete() {
     const ok = await confirmAction({
@@ -192,6 +206,11 @@ export function SecretDetail({ item, folderName, health, links, onEdit, onClosed
         {canSeeSecrets && (
           <Button variant="ghost" aria-expanded={showHistory} onClick={() => setShowHistory((s) => !s)}>
             <History /> History
+          </Button>
+        )}
+        {jsonValue && canSeeSecrets && (
+          <Button variant="outline" onClick={downloadJson}>
+            <Download /> Download JSON
           </Button>
         )}
         {!item.inheritedFolderId && <Button variant="destructive" className="ml-auto min-h-11" disabled={remove.isPending || leave.isPending} onClick={item.isOwner ? onDelete : onLeave}>

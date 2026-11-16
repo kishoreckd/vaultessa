@@ -1,26 +1,50 @@
-import { useStrengthEstimator } from '@/hooks/useStrengthEstimator';
-import { useId, useState, type SubmitEvent } from 'react';
-import { LoaderCircle, Lock } from 'lucide-react';
-import { toast } from 'sonner';
-import { Drawer } from '@/components/common/drawer';
-import { confirmAction } from '@/components/common/confirm-dialog';
-import { FormField, TextareaField, TextField } from '@/components/common/form-field';
-import { PasswordInput } from '@/components/common/password-input';
-import { CardScanner } from './CardScanner';
-import { GeneratorPanel } from '@/features/generator/GeneratorPanel';
-import { StrengthMeter } from '@/components/common/strength-meter';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SECRET_TYPES, type SecretType } from '@/api/vault/types';
-import { DEFAULT_GENERATOR_OPTIONS, estimateStrength, generatePassword } from '@/lib/crypto';
-import { cn } from '@/lib/utils';
-import { useFormErrors } from '@/hooks/useFormErrors';
-import { normalizeUrl, urlError } from '@/lib/validation';
-import { useSaveSecret } from './hooks';
-import { cleanPayload, getField, setField, TEMPLATES, type FieldDef } from './secretTemplates';
-import type { DecryptedFolder, DecryptedItem, SecretPayload } from './vaultTypes';
+import { useStrengthEstimator } from "@/hooks/useStrengthEstimator";
+import { useId, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { LoaderCircle, Lock, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { Drawer } from "@/components/common/drawer";
+import { confirmAction } from "@/components/common/confirm-dialog";
+import {
+  FormField,
+  TextareaField,
+  TextField,
+} from "@/components/common/form-field";
+import { PasswordInput } from "@/components/common/password-input";
+import { CardScanner } from "./CardScanner";
+import { GeneratorPanel } from "@/features/generator/GeneratorPanel";
+import { StrengthMeter } from "@/components/common/strength-meter";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { SECRET_TYPES, type SecretType } from "@/api/vault/types";
+import {
+  DEFAULT_GENERATOR_OPTIONS,
+  estimateStrength,
+  generatePassword,
+} from "@/lib/crypto";
+import { cn } from "@/lib/utils";
+import { useFormErrors } from "@/hooks/useFormErrors";
+import { normalizeUrl, urlError } from "@/lib/validation";
+import { useSaveSecret } from "./hooks";
+import {
+  cleanPayload,
+  getField,
+  setField,
+  TEMPLATES,
+  type FieldDef,
+} from "./secretTemplates";
+import type {
+  DecryptedFolder,
+  DecryptedItem,
+  SecretPayload,
+} from "./vaultTypes";
 
-const NO_FOLDER = 'none';
+const NO_FOLDER = "none";
 
 type Props = {
   open: boolean;
@@ -33,7 +57,12 @@ type Props = {
 };
 
 /** Create / edit an item in a right-side drawer. */
-export function SecretEditorDrawer({ open, onOpenChange, existing, ...rest }: Props) {
+export function SecretEditorDrawer({
+  open,
+  onOpenChange,
+  existing,
+  ...rest
+}: Props) {
   useStrengthEstimator();
   const formId = useId();
   const save = useSaveSecret();
@@ -41,10 +70,11 @@ export function SecretEditorDrawer({ open, onOpenChange, existing, ...rest }: Pr
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
-      title={existing ? `Edit “${existing.data.name}”` : 'New item'}
+      title={existing ? `Edit “${existing.data.name}”` : "New item"}
       description={
         <span className="flex items-center gap-1.5">
-          <Lock className="size-3.5" /> Encrypted on this device before it’s saved.
+          <Lock className="size-3.5" /> Encrypted on this device before it’s
+          saved.
         </span>
       }
       footer={
@@ -54,7 +84,11 @@ export function SecretEditorDrawer({ open, onOpenChange, existing, ...rest }: Pr
           </Button>
           <Button type="submit" form={formId} disabled={save.isPending}>
             {save.isPending && <LoaderCircle className="animate-spin" />}
-            {save.isPending ? 'Saving…' : existing ? 'Save changes' : 'Save item'}
+            {save.isPending
+              ? "Saving…"
+              : existing
+                ? "Save changes"
+                : "Save item"}
           </Button>
         </>
       }
@@ -81,22 +115,29 @@ function SecretForm({
   existing,
   folders,
   defaultFolderId,
-  defaultType = 'LOGIN',
+  defaultType = "LOGIN",
   save,
   onDone,
-}: Omit<Props, 'open' | 'onOpenChange' | 'onSaved'> & {
+}: Omit<Props, "open" | "onOpenChange" | "onSaved"> & {
   formId: string;
   save: ReturnType<typeof useSaveSecret>;
   onDone: (id: string) => void;
 }) {
   const [type, setType] = useState<SecretType>(existing?.type ?? defaultType);
-  const [data, setData] = useState<SecretPayload>(existing?.data ?? { name: '' });
-  const [folderId, setFolderId] = useState<string | null>(existing ? existing.folderId : defaultFolderId);
+  const [data, setData] = useState<SecretPayload>(
+    existing?.data ?? { name: "" },
+  );
+  const [folderId, setFolderId] = useState<string | null>(
+    existing ? existing.folderId : defaultFolderId,
+  );
   const [expiry, setExpiry] = useState(() => {
-    if (!existing?.expiresAt) return '';
+    if (!existing?.expiresAt) return "";
     const date = new Date(existing.expiresAt);
-    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
   });
+  const jsonFileInput = useRef<HTMLInputElement>(null);
   const template = TEMPLATES[type];
   const { formRef, errors, validate, clear } = useFormErrors<string>();
   const update = (key: string) => (value: string) => {
@@ -104,47 +145,103 @@ function SecretForm({
     clear(key);
   };
 
+  async function uploadJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 1_000_000) {
+      toast.error("JSON file is too large", { description: "Choose a file smaller than 1 MB." });
+      return;
+    }
+    try {
+      const formatted = JSON.stringify(JSON.parse(await file.text()), null, 2);
+      setData((current) => {
+        const named = current.name.trim()
+          ? current
+          : { ...current, name: file.name.replace(/\.json$/i, "") };
+        return setField(named, "json", formatted);
+      });
+      clear("json");
+      clear("name");
+      toast.success("JSON file loaded", { description: "Review the values, then save the item." });
+    } catch {
+      toast.error("Couldnâ€™t read this JSON file", { description: "Choose a valid .json file." });
+    }
+  }
+
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const checks: Record<string, string | null> = {
-      name: data.name.trim() ? null : 'Give this item a name.',
-      expiry: !expiry || Number.isFinite(Date.parse(expiry)) ? null : 'Choose a valid expiry date and time.',
+      name: data.name.trim() ? null : "Give this item a name.",
+      expiry:
+        !expiry || Number.isFinite(Date.parse(expiry))
+          ? null
+          : "Choose a valid expiry date and time.",
     };
     for (const f of template.fields) {
-      const value = getField(data, f.key) ?? '';
+      const value = getField(data, f.key) ?? "";
       checks[f.key] = f.link ? urlError(value) : (f.validate?.(value) ?? null);
     }
     if (!validate(checks)) return;
-    const destination = folders.find(folder => folder.id === folderId);
-    const previous = folders.find(folder => folder.id === existing?.folderId);
-    if (folderId !== existing?.folderId && (destination?.memberCount || previous?.memberCount) &&
-      !await confirmAction({ title: 'Save item and change access?',
-        description: `${destination?.memberCount ? 'Everyone in the destination folder will gain access. ' : ''}${previous?.memberCount ? 'Access inherited from the previous folder will end. ' : ''}Separate item shares remain.`,
-        confirmLabel: 'Save item' })) return;
+    const destination = folders.find((folder) => folder.id === folderId);
+    const previous = folders.find((folder) => folder.id === existing?.folderId);
+    if (
+      folderId !== existing?.folderId &&
+      (destination?.memberCount || previous?.memberCount) &&
+      !(await confirmAction({
+        title: "Save item and change access?",
+        description: `${destination?.memberCount ? "Everyone in the destination folder will gain access. " : ""}${previous?.memberCount ? "Access inherited from the previous folder will end. " : ""}Separate item shares remain.`,
+        confirmLabel: "Save item",
+      }))
+    )
+      return;
 
     // "github.com" → "https://github.com" so links in the detail view work.
     let payload = data;
+    if (type === "JSON" && data.fields?.json) {
+      payload = setField(
+        payload,
+        "json",
+        JSON.stringify(JSON.parse(data.fields.json), null, 2),
+      );
+    }
     for (const f of template.fields) {
       const value = getField(data, f.key);
-      if (f.link && value) payload = setField(payload, f.key, normalizeUrl(value) ?? value);
+      if (f.link && value)
+        payload = setField(payload, f.key, normalizeUrl(value) ?? value);
     }
-    const item = await save.mutateAsync({ existing, type, data: cleanPayload(payload), folderId,
-      expiresAt: expiry ? new Date(expiry).toISOString() : null });
-    toast.success(existing ? 'Changes saved' : `${template.label} saved`, {
-      description: existing ? undefined : `“${data.name.trim()}” is now in your vault.`,
+    const item = await save.mutateAsync({
+      existing,
+      type,
+      data: cleanPayload(payload),
+      folderId,
+      expiresAt: expiry ? new Date(expiry).toISOString() : null,
+    });
+    toast.success(existing ? "Changes saved" : `${template.label} saved`, {
+      description: existing
+        ? undefined
+        : `“${data.name.trim()}” is now in your vault.`,
     });
     onDone(item.id);
   }
 
   return (
-    <form id={formId} ref={formRef} onSubmit={onSubmit} noValidate className="grid gap-5">
+    <form
+      id={formId}
+      ref={formRef}
+      onSubmit={onSubmit}
+      noValidate
+      className="grid gap-5"
+    >
       {existing ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <template.icon className="size-4" /> {template.label}
         </div>
       ) : (
         <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm font-medium">What are you saving?</legend>
+          <legend className="mb-2 text-sm font-medium">
+            What are you saving?
+          </legend>
           <div className="grid grid-cols-3 gap-2" role="radiogroup">
             {SECRET_TYPES.map((t) => {
               const option = TEMPLATES[t];
@@ -161,10 +258,10 @@ function SecretForm({
                     validate({});
                   }}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    "flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     active
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                 >
                   <option.icon className="size-5" />
@@ -173,7 +270,9 @@ function SecretForm({
               );
             })}
           </div>
-          <p className="text-xs text-muted-foreground">{template.description}</p>
+          <p className="text-xs text-muted-foreground">
+            {template.description}
+          </p>
         </fieldset>
       )}
 
@@ -182,25 +281,54 @@ function SecretForm({
         required
         maxLength={200}
         autoFocus
-        placeholder={type === 'LOGIN' ? 'e.g. GitHub' : `e.g. ${template.label}`}
+        placeholder={
+          type === "LOGIN" ? "e.g. GitHub" : `e.g. ${template.label}`
+        }
         value={data.name}
         error={errors.name}
         onChange={(e) => {
           setData((d) => ({ ...d, name: e.target.value }));
-          clear('name');
+          clear("name");
         }}
       />
 
-      {type === 'CARD' && <CardScanner onApply={card => {
-        setData(current => Object.entries(card).reduce((next, [key, value]) => value.trim() ? setField(next, key, value.trim()) : next, current));
-        for (const key of Object.keys(card)) clear(key);
-      }} />}
+      {type === "CARD" && (
+        <CardScanner
+          onApply={(card) => {
+            setData((current) =>
+              Object.entries(card).reduce(
+                (next, [key, value]) =>
+                  value.trim() ? setField(next, key, value.trim()) : next,
+                current,
+              ),
+            );
+            for (const key of Object.keys(card)) clear(key);
+          }}
+        />
+      )}
+
+      {type === "JSON" && (
+        <div className="flex items-center gap-2">
+          <input
+            ref={jsonFileInput}
+            type="file"
+            accept=".json,application/json"
+            className="sr-only"
+            aria-label="Upload JSON file"
+            onChange={uploadJson}
+          />
+          <Button type="button" variant="outline" onClick={() => jsonFileInput.current?.click()}>
+            <Upload /> Upload JSON file
+          </Button>
+          <span className="text-xs text-muted-foreground">Up to 1 MB</span>
+        </div>
+      )}
 
       {template.fields.map((field) => (
         <FieldInput
           key={field.key}
           field={field}
-          value={getField(data, field.key) ?? ''}
+          value={getField(data, field.key) ?? ""}
           error={errors[field.key]}
           onChange={update(field.key)}
         />
@@ -208,30 +336,56 @@ function SecretForm({
 
       <TextareaField
         label={template.notesLabel}
-        rows={type === 'SECURE_NOTE' ? 8 : 3}
-        value={data.notes ?? ''}
+        rows={type === "SECURE_NOTE" ? 8 : 3}
+        value={data.notes ?? ""}
         onChange={(e) => setData((d) => ({ ...d, notes: e.target.value }))}
       />
-      <TextField label="Item expiry (your local time)" type="datetime-local" value={expiry} error={errors.expiry}
-        onChange={(event) => { setExpiry(event.target.value); clear('expiry'); }}
-        hint="Optional. The expiry date is stored as scheduling metadata. Reminder emails go to the owner; names and passwords remain encrypted. Changing a password does not automatically update its expiry." />
+      <TextField
+        label="Item expiry (your local time)"
+        type="datetime-local"
+        value={expiry}
+        error={errors.expiry}
+        onChange={(event) => {
+          setExpiry(event.target.value);
+          clear("expiry");
+        }}
+        hint="Optional. The expiry date is stored as scheduling metadata. Reminder emails go to the owner; names and passwords remain encrypted. Changing a password does not automatically update its expiry."
+      />
 
       <FormField id={`${formId}-folder`} label="Folder">
-        <Select disabled={!!existing?.inheritedFolderId} value={folderId ?? NO_FOLDER} onValueChange={(v) => setFolderId(v === NO_FOLDER ? null : v)}>
+        <Select
+          disabled={!!existing?.inheritedFolderId}
+          value={folderId ?? NO_FOLDER}
+          onValueChange={(v) => setFolderId(v === NO_FOLDER ? null : v)}
+        >
           <SelectTrigger id={`${formId}-folder`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NO_FOLDER}>No folder</SelectItem>
-            {folders.filter(f => f.isOwner !== false || f.id === existing?.folderId).map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}{f.memberCount ? ' (shared)' : ''}
-              </SelectItem>
-            ))}
+            {folders
+              .filter((f) => f.isOwner !== false || f.id === existing?.folderId)
+              .map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                  {f.memberCount ? " (shared)" : ""}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
-        {existing?.inheritedFolderId ? <p className="text-xs text-muted-foreground">The owner manages this shared folder. Your changes are visible to everyone with access.</p> :
-          !!folders.find(f => f.id === folderId)?.memberCount && <p className="text-xs text-muted-foreground">Everyone with access to this folder will also have access to this item.</p>}
+        {existing?.inheritedFolderId ? (
+          <p className="text-xs text-muted-foreground">
+            The owner manages this shared folder. Your changes are visible to
+            everyone with access.
+          </p>
+        ) : (
+          !!folders.find((f) => f.id === folderId)?.memberCount && (
+            <p className="text-xs text-muted-foreground">
+              Everyone with access to this folder will also have access to this
+              item.
+            </p>
+          )
+        )}
       </FormField>
     </form>
   );
@@ -256,7 +410,9 @@ function FieldInput({
         rows={field.secret ? 5 : 3}
         spellCheck={false}
         placeholder={field.placeholder}
-        className={cn(field.mono && '[&_textarea]:font-mono [&_textarea]:text-xs')}
+        className={cn(
+          field.mono && "[&_textarea]:font-mono [&_textarea]:text-xs",
+        )}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -270,17 +426,23 @@ function FieldInput({
           error={error}
           autoComplete="new-password"
           placeholder={field.placeholder}
-          className={cn(field.mono && '[&_input]:font-mono')}
+          className={cn(field.mono && "[&_input]:font-mono")}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onGenerate={
-            field.generate ? () => onChange(generatePassword(DEFAULT_GENERATOR_OPTIONS)) : undefined
+            field.generate
+              ? () => onChange(generatePassword(DEFAULT_GENERATOR_OPTIONS))
+              : undefined
           }
         />
-        {field.generate && value && <StrengthMeter strength={estimateStrength(value)} />}
+        {field.generate && value && (
+          <StrengthMeter strength={estimateStrength(value)} />
+        )}
         {field.generate && (
           <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Password options</summary>
+            <summary className="cursor-pointer text-sm font-medium">
+              Password options
+            </summary>
             <div className="pt-4">
               <GeneratorPanel onUse={onChange} />
             </div>
@@ -293,11 +455,11 @@ function FieldInput({
     <TextField
       label={field.label}
       error={error}
-      inputMode={field.link ? 'url' : undefined}
+      inputMode={field.link ? "url" : undefined}
       autoComplete="off"
       spellCheck={false}
       placeholder={field.placeholder}
-      className={cn(field.mono && '[&_input]:font-mono')}
+      className={cn(field.mono && "[&_input]:font-mono")}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />

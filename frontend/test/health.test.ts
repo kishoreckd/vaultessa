@@ -139,4 +139,15 @@ describe('secret templates', () => {
       expect(new Set(keys).size).toBe(keys.length);
     }
   });
+
+  it('validates JSON items and summarizes their top-level shape', () => {
+    const jsonField = TEMPLATES.JSON.fields.find((field) => field.key === 'json');
+    expect(jsonField?.validate?.('{"token":"secret"}')).toBeNull();
+    expect(jsonField?.validate?.('{"token":}')).toMatch(/^Invalid JSON:/);
+    expect(jsonField?.validate?.('')).toBe('Enter JSON data.');
+    expect(TEMPLATES.JSON.subtitle({ name: 'Config', fields: { json: '{"token":"secret"}' } })).toBe(
+      '1 top-level key',
+    );
+    expect(TEMPLATES.JSON.subtitle({ name: 'Config', fields: { json: '[1,2]' } })).toBe('2 array items');
+  });
 });
